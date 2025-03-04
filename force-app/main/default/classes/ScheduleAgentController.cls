@@ -3,7 +3,7 @@ public with sharing class ScheduleAgentController {
         label='Load Sessions that need to be scheduled'
         description='This will load all Sesson\'s that do not yet have a Session Slot scheduled'
     )
-    public static List<Session> getSessionsToSchedule(List < SessionInput > input) {
+    public static List<SessionArray> getSessionsToSchedule(List < SessionInput > input) {
         List < Session__c > sessions = [SELECT Id, Name, Requested_Room_Size__c, Session_Length_Minutes__c, Session_Scheduled_Placeholder__c, (SELECT ID, Speaker__c, Speaker__r.FirstName, Speaker__r.LastName, Speaker__r.Email FROM Session_Speakers__r) FROM Session__c];
 
         List < ScheduleAgentController.Session > sessionsToSchedule = new List < ScheduleAgentController.Session > ();
@@ -17,7 +17,24 @@ public with sharing class ScheduleAgentController {
             sessionsToSchedule.add(session);
         }
         System.debug('Sessions to Schedule: ' + JSON.serialize(sessionsToSchedule));
-        return sessionsToSchedule;
+
+        SessionArray sessionsArray = new SessionArray(sessionsToSchedule);
+        List < SessionArray > sessionsArrayAsList = new List < SessionArray > ();
+        sessionsArrayAsList.add(sessionsArray);
+        System.debug('Sessions to Schedule: ' + JSON.serialize(sessionsArrayAsList));
+        return sessionsArrayAsList;
+
+    }
+
+    public class SessionArray {
+        @InvocableVariable(
+            description='Session Array'
+        )
+        public List<Session> sessionArray;
+
+        public SessionArray(List<Session> sessionArray) {
+            this.sessionArray = sessionArray;
+        }
     }
 
     public class Session {

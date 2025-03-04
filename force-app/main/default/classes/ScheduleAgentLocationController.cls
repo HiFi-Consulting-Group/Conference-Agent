@@ -3,20 +3,38 @@ public with sharing class ScheduleAgentLocationController {
         label='Load Rooms with availability slots'
         description='Currently just loads Locations, Availbility will be added later'
     )
-    public static List<ScheduleAgentLocationController.Location> getLocations(List < ScheduleAgentLocationController.SessionInput > input) {
+    public static List<ScheduleAgentLocationController.LocationArray> getLocations(List < ScheduleAgentLocationController.SessionInput > input) {
         List < Session_Location__c > locations = [SELECT Id, Name, Room_Capacity__c FROM Session_Location__c];
 
         List < ScheduleAgentLocationController.Location > locationsToReturn = new List < ScheduleAgentLocationController.Location > ();
-        
+
+        System.debug('Location sobjs: ' + JSON.serialize(locations));
+
         for (Session_Location__c location: locations) {
-            ScheduleAgentLocationController.Location loc = new ScheduleAgentLocationController.Location(location.Name, location.Id, String.valueOf(location.Room_Capacity__c));
+            ScheduleAgentLocationController.Location loc = new ScheduleAgentLocationController.Location(location.Name, location.Id);
             System.debug('loc'+JSON.serialize(loc));
             locationsToReturn.add(loc);
         }
-        System.debug('Locations to Schedule: ' + JSON.serialize(locationsToReturn));
-        return locationsToReturn;
+
+        LocationArray locationsArray = new LocationArray(locationsToReturn);
+        //List of results for formatting reasons
+        List<LocationArray> locationsArrayAsList = new List<LocationArray>();
+        locationsArrayAsList.add(locationsArray);
+        System.debug('Locations to Schedule: ' + JSON.serialize(locationsArrayAsList));
+        return locationsArrayAsList;
         
         // return locationsToReturn;
+    }
+
+    public class LocationArray {
+        @InvocableVariable(
+            description='Location Array'
+        )
+        public List<Location> locationArray;
+
+        public LocationArray(List<Location> locationArray) {
+            this.locationArray = locationArray;
+        }
     }
 
     public class Location {
@@ -35,10 +53,10 @@ public with sharing class ScheduleAgentLocationController {
         )
         public String locationCapacity;
 
-        public Location (String locationName, Id locationId, String locationCapacity) {
+        public Location (String locationName, Id locationId) {
             this.locationName = locationName;
             this.locationId = locationId;
-            this.locationCapacity = locationCapacity;
+            // this.locationCapacity = locationCapacity;
         }
 
     }
