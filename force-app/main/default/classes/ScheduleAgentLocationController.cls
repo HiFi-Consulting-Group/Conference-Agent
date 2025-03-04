@@ -3,16 +3,20 @@ public with sharing class ScheduleAgentLocationController {
         label='Load Rooms with availability slots'
         description='Currently just loads Locations, Availbility will be added later'
     )
-    public static List<Location> getLocations(List < SessionInput > input) {
+    public static List<ScheduleAgentLocationController.Location> getLocations(List < ScheduleAgentLocationController.SessionInput > input) {
         List < Session_Location__c > locations = [SELECT Id, Name, Room_Capacity__c FROM Session_Location__c];
 
-        List < Location > locationsToReturn = new List < Location > ();
+        List < ScheduleAgentLocationController.Location > locationsToReturn = new List < ScheduleAgentLocationController.Location > ();
+        
         for (Session_Location__c location: locations) {
-            Location loc = new Location(location.Name, location.Id, String.valueOf(location.Room_Capacity__c));
+            ScheduleAgentLocationController.Location loc = new ScheduleAgentLocationController.Location(location.Name, location.Id, String.valueOf(location.Room_Capacity__c));
+            System.debug('loc'+JSON.serialize(loc));
             locationsToReturn.add(loc);
         }
         System.debug('Locations to Schedule: ' + JSON.serialize(locationsToReturn));
         return locationsToReturn;
+        
+        // return locationsToReturn;
     }
 
     public class Location {
