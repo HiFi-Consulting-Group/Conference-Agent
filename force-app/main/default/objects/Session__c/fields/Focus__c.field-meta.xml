@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Focus__c</fullName>
+    <label>Focus</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Program/Case Management</fullName>
+                <default>false</default>
+                <label>Program/Case Management</label>
+            </value>
+            <value>
+                <fullName>Fundraising/Development</fullName>
+                <default>false</default>
+                <label>Fundraising/Development</label>
+            </value>
+            <value>
+                <fullName>Volunteer Management</fullName>
+                <default>false</default>
+                <label>Volunteer Management</label>
+            </value>
+            <value>
+                <fullName>Fund Distribution/Grantmaking</fullName>
+                <default>false</default>
+                <label>Fund Distribution/Grantmaking</label>
+            </value>
+            <value>
+                <fullName>Marketing/Outreach</fullName>
+                <default>false</default>
+                <label>Marketing/Outreach</label>
+            </value>
+            <value>
+                <fullName>Impact/Outcome Measurements</fullName>
+                <default>false</default>
+                <label>Impact/Outcome Measurements</label>
+            </value>
+            <value>
+                <fullName>Career/Personal Branding</fullName>
+                <default>false</default>
+                <label>Career/Personal Branding</label>
+            </value>
+            <value>
+                <fullName>Admin/Declarative Developer</fullName>
+                <default>false</default>
+                <label>Admin/Declarative Developer</label>
+            </value>
+            <value>
+                <fullName>Developer</fullName>
+                <default>false</default>
+                <label>Developer</label>
+            </value>
+            <value>
+                <fullName>Architect</fullName>
+                <default>false</default>
+                <label>Architect</label>
+            </value>
+            <value>
+                <fullName>Business</fullName>
+                <default>false</default>
+                <label>Business</label>
+            </value>
+            <value>
+                <fullName>Reporting/Analytics</fullName>
+                <default>false</default>
+                <label>Reporting/Analytics</label>
+            </value>
+            <value>
+                <fullName>DevOps</fullName>
+                <default>false</default>
+                <label>DevOps</label>
+            </value>
+            <value>
+                <fullName>Other</fullName>
+                <default>false</default>
+                <label>Other</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

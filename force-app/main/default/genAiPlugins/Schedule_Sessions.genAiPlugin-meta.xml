@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <GenAiPlugin xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
     <canEscalate>false</canEscalate>
-    <description>Load the Sessions that need to be scheduled and match them to Locations.</description>
+    <description>This topic will generate a proposed session schedule, matching sessions to locations. It will schedule as many sessions as possible given available locations and times and dates. After the user approves the schedule it will create Session Slots.</description>
     <developerName>Schedule_Sessions</developerName>
     <genAiFunctions>
         <functionName>Load_Sessions_that_need_to_be_scheduled</functionName>
@@ -13,53 +13,85 @@
         <functionName>Insert_Session_Slot_records_to_complete_scheduling</functionName>
     </genAiFunctions>
     <genAiPluginInstructions>
-        <description>Sessions can be scheduled any time between 8AM and 4pm from April 1, 2025 through April 3, 2025. There should be no scheduled sessions between 12pm and 1pm. Allow a 10 minute buffer between sessions.</description>
+        <description>Sessions can be scheduled any time between 8AM and 4pm between April 1, 2025 through April 3, 2025.</description>
         <developerName>instruction_sessionsca0</developerName>
         <language xsi:nil="true"/>
         <masterLabel>instruction_sessionsca0</masterLabel>
     </genAiPluginInstructions>
     <genAiPluginInstructions>
-        <description>Make initial assignments for as many sessions as is possible with the available rooms. Rooms can be booked from 8am to 4pm. Try and fill up the rooms if there are sessions that need to be scheduled.</description>
-        <developerName>instruction_makeinitia1</developerName>
-        <language xsi:nil="true"/>
-        <masterLabel>instruction_makeinitia1</masterLabel>
-    </genAiPluginInstructions>
-    <genAiPluginInstructions>
         <description>Allow the user to request changes to the proposed schedule as long as it does not break any of the previously established rules.</description>
-        <developerName>instruction_allowtheus2</developerName>
+        <developerName>instruction_allowtheus1</developerName>
         <language xsi:nil="true"/>
-        <masterLabel>instruction_allowtheus2</masterLabel>
+        <masterLabel>instruction_allowtheus1</masterLabel>
     </genAiPluginInstructions>
     <genAiPluginInstructions>
-        <description>When the user confirms the schedule or asks to create Session Slots, pass data to the Insert_Session_Slot_records_to_complete_scheduling agent action</description>
+        <description>Determine Start and End times and date based on the Session duration and available location.</description>
+        <developerName>instruction_determines2</developerName>
+        <language xsi:nil="true"/>
+        <masterLabel>instruction_determines2</masterLabel>
+    </genAiPluginInstructions>
+    <genAiPluginInstructions>
+        <description>When the user requests a session schedule or proposed session schedule, generate the schedule and show the user a table showing the session name, speaker names, location and start and end time and date. The table does should not show the Session ID. DO NOT Insert Session Slot records until the user confirms the schedule. Always show the table in the chat and ask the user to confirm the schedule or make adjustments.</description>
         <developerName>instruction_whentheuse3</developerName>
         <language xsi:nil="true"/>
         <masterLabel>instruction_whentheuse3</masterLabel>
     </genAiPluginInstructions>
     <genAiPluginInstructions>
-        <description>Determine Start and End times and date based on the Session duration and available location.</description>
-        <developerName>instruction_determines4</developerName>
+        <description>Schedule as many sessions as possible so that the Locations are fully booked if there are enough sessions. Locations can be booked from 8am to 4pm.</description>
+        <developerName>instruction_scheduleas4</developerName>
         <language xsi:nil="true"/>
-        <masterLabel>instruction_determines4</masterLabel>
+        <masterLabel>instruction_scheduleas4</masterLabel>
     </genAiPluginInstructions>
     <genAiPluginInstructions>
-        <description>When the user requests a session schedule or proposed session schedule, generate the schedule and show the user a table showing the session name, speaker names, location and start and end time and date. The table does should not show the Session ID.</description>
-        <developerName>instruction_whentheuse5</developerName>
+        <description>The final step, after the user confirms the final proposed schedule, is to pass data to the Insert_Session_Slot_records_to_complete_scheduling agent action.</description>
+        <developerName>instruction_thefinalst5</developerName>
         <language xsi:nil="true"/>
-        <masterLabel>instruction_whentheuse5</masterLabel>
+        <masterLabel>instruction_thefinalst5</masterLabel>
     </genAiPluginInstructions>
     <genAiPluginInstructions>
-        <description>Do not try to Insert_Session_Slot_records_to_complete_scheduling until after the user has confirmed the proposed schedule. This action should not be run at the same time as fetching sessions and locations.</description>
-        <developerName>instruction_donottryto6</developerName>
+        <description>Multiple sessions can be booked in a location on the same day as long as their times do not overlap. Locations should be as fully booked as possible.</description>
+        <developerName>instruction_multiplese6</developerName>
         <language xsi:nil="true"/>
-        <masterLabel>instruction_donottryto6</masterLabel>
+        <masterLabel>instruction_multiplese6</masterLabel>
+    </genAiPluginInstructions>
+    <genAiPluginInstructions>
+        <description>There should be no scheduled sessions between 12pm and 1pm. Allow a 10 minute buffer between sessions in the same location.</description>
+        <developerName>instruction_thereshoul7</developerName>
+        <language xsi:nil="true"/>
+        <masterLabel>instruction_thereshoul7</masterLabel>
+    </genAiPluginInstructions>
+    <genAiPluginInstructions>
+        <description>Never run the Insert_Session_Slot_records_to_complete_scheduling action until after the user confirms the schedule.  This action should not occur at the same time as session and location data are retrieved.</description>
+        <developerName>instruction_neverrunth8</developerName>
+        <language xsi:nil="true"/>
+        <masterLabel>instruction_neverrunth8</masterLabel>
+    </genAiPluginInstructions>
+    <genAiPluginInstructions>
+        <description>Never insert session slots if the user has not confirmed the schedule.</description>
+        <developerName>instruction_neverinser9</developerName>
+        <language xsi:nil="true"/>
+        <masterLabel>instruction_neverinser9</masterLabel>
+    </genAiPluginInstructions>
+    <genAiPluginInstructions>
+        <description>Try to place sessions in a location with a matching room size, but if there is no location available that matches on size, pick the first available location with availability.</description>
+        <developerName>instruction_trytoplace10</developerName>
+        <language xsi:nil="true"/>
+        <masterLabel>instruction_trytoplace10</masterLabel>
+    </genAiPluginInstructions>
+    <genAiPluginInstructions>
+        <description>When generating the schedule records, never cut off the returned data in the middle of a record.</description>
+        <developerName>instruction_whengenera11</developerName>
+        <language xsi:nil="true"/>
+        <masterLabel>instruction_whengenera11</masterLabel>
     </genAiPluginInstructions>
     <language>en_US</language>
     <masterLabel>Schedule Sessions</masterLabel>
     <pluginType>Topic</pluginType>
-    <scope>Your job is to load Sessions that need to be scheduled using the Load_Sessions_that_need_to_be_scheduled agent action. You will use the Load_Rooms_with_availability_slots Agent action to load the locations that are available.
+    <scope>Your job is to generate a proposed schedule for as many sessions as possible. 
 
-For each session, find an available location based on session length.
+For each session, find an available location based on session length and location availability. Generate a table of the proposed schedule and display it for the user.
 
-After the user confirms the schedule, we will insert Session Slots.</scope>
+Ask the user to confirm or adjust the schedule. 
+
+After the user confirms the schedule, insert the Session Slot records.</scope>
 </GenAiPlugin>

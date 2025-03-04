@@ -4,7 +4,7 @@ public with sharing class ScheduleAgentController {
         description='This will load all Sesson\'s that do not yet have a Session Slot scheduled'
     )
     public static List<SessionArray> getSessionsToSchedule(List < SessionInput > input) {
-        List < Session__c > sessions = [SELECT Id, Name, Requested_Room_Size__c, Session_Length_Minutes__c, Scheduled__c, (SELECT ID, Speaker__c, Speaker__r.FirstName, Speaker__r.LastName, Speaker__r.Email FROM Session_Speakers__r) FROM Session__c];
+        List < Session__c > sessions = [SELECT Id, Name, Requested_Room_Size__c, Session_Length_Minutes__c, Scheduled__c, (SELECT ID, Speaker__c, Speaker__r.FirstName, Speaker__r.LastName, Speaker__r.Email FROM Session_Speakers__r) FROM Session__c LIMIT 25];
 
         List < ScheduleAgentController.Session > sessionsToSchedule = new List < ScheduleAgentController.Session > ();
         for (Session__c ses: sessions) {

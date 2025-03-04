@@ -4,14 +4,14 @@ public with sharing class ScheduleAgentLocationController {
         description='Currently just loads Locations, Availbility will be added later'
     )
     public static List<ScheduleAgentLocationController.LocationArray> getLocations(List < ScheduleAgentLocationController.SessionInput > input) {
-        List < Session_Location__c > locations = [SELECT Id, Name, Room_Capacity__c FROM Session_Location__c];
+        List < Session_Location__c > locations = [SELECT Id, Name, Room_Size__c FROM Session_Location__c];
 
         List < ScheduleAgentLocationController.Location > locationsToReturn = new List < ScheduleAgentLocationController.Location > ();
 
         System.debug('Location sobjs: ' + JSON.serialize(locations));
 
         for (Session_Location__c location: locations) {
-            ScheduleAgentLocationController.Location loc = new ScheduleAgentLocationController.Location(location.Name, location.Id);
+            ScheduleAgentLocationController.Location loc = new ScheduleAgentLocationController.Location(location.Name, location.Id, location.Room_Size__c);
             System.debug('loc'+JSON.serialize(loc));
             locationsToReturn.add(loc);
         }
@@ -53,10 +53,10 @@ public with sharing class ScheduleAgentLocationController {
         )
         public String locationCapacity;
 
-        public Location (String locationName, Id locationId) {
+        public Location (String locationName, Id locationId, String locationRoomSize) {
             this.locationName = locationName;
             this.locationId = locationId;
-            // this.locationCapacity = locationCapacity;
+            this.locationCapacity = locationRoomSize;
         }
 
     }
