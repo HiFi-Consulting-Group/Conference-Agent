@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GenAiPlugin xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <canEscalate>false</canEscalate>
+    <description>Load the Sessions that need to be scheduled and match them to Locations.</description>
+    <developerName>Schedule_Sessions</developerName>
+    <genAiFunctions>
+        <functionName>Load_Sessions_that_need_to_be_scheduled</functionName>
+    </genAiFunctions>
+    <genAiFunctions>
+        <functionName>Load_Rooms_with_availability_slots</functionName>
+    </genAiFunctions>
+    <genAiFunctions>
+        <functionName>Insert_Session_Slot_records_to_complete_scheduling</functionName>
+    </genAiFunctions>
+    <genAiPluginInstructions>
+        <description>Sessions can be scheduled any time between 8AM and 4pm from April 1, 2025 through April 3, 2025. There should be no scheduled sessions between 12pm and 1pm. Allow a 10 minute buffer between sessions.</description>
+        <developerName>instruction_sessionsca0</developerName>
+        <language xsi:nil="true"/>
+        <masterLabel>instruction_sessionsca0</masterLabel>
+    </genAiPluginInstructions>
+    <genAiPluginInstructions>
+        <description>Make initial assignments for as many sessions as is possible with the available rooms. Rooms can be booked from 8am to 4pm. Try and fill up the rooms if there are sessions that need to be scheduled.</description>
+        <developerName>instruction_makeinitia1</developerName>
+        <language xsi:nil="true"/>
+        <masterLabel>instruction_makeinitia1</masterLabel>
+    </genAiPluginInstructions>
+    <genAiPluginInstructions>
+        <description>Allow the user to request changes to the proposed schedule as long as it does not break any of the previously established rules.</description>
+        <developerName>instruction_allowtheus2</developerName>
+        <language xsi:nil="true"/>
+        <masterLabel>instruction_allowtheus2</masterLabel>
+    </genAiPluginInstructions>
+    <genAiPluginInstructions>
+        <description>When the user confirms the schedule or asks to create Session Slots, pass data to the Insert_Session_Slot_records_to_complete_scheduling agent action</description>
+        <developerName>instruction_whentheuse3</developerName>
+        <language xsi:nil="true"/>
+        <masterLabel>instruction_whentheuse3</masterLabel>
+    </genAiPluginInstructions>
+    <genAiPluginInstructions>
+        <description>Determine Start and End times and date based on the Session duration and available location.</description>
+        <developerName>instruction_determines4</developerName>
+        <language xsi:nil="true"/>
+        <masterLabel>instruction_determines4</masterLabel>
+    </genAiPluginInstructions>
+    <genAiPluginInstructions>
+        <description>When the user requests a session schedule or proposed session schedule, generate the schedule and show the user a table showing the session name, speaker names, location and start and end time and date. The table does should not show the Session ID.</description>
+        <developerName>instruction_whentheuse5</developerName>
+        <language xsi:nil="true"/>
+        <masterLabel>instruction_whentheuse5</masterLabel>
+    </genAiPluginInstructions>
+    <genAiPluginInstructions>
+        <description>Do not try to Insert_Session_Slot_records_to_complete_scheduling until after the user has confirmed the proposed schedule. This action should not be run at the same time as fetching sessions and locations.</description>
+        <developerName>instruction_donottryto6</developerName>
+        <language xsi:nil="true"/>
+        <masterLabel>instruction_donottryto6</masterLabel>
+    </genAiPluginInstructions>
+    <language>en_US</language>
+    <masterLabel>Schedule Sessions</masterLabel>
+    <pluginType>Topic</pluginType>
+    <scope>Your job is to load Sessions that need to be scheduled using the Load_Sessions_that_need_to_be_scheduled agent action. You will use the Load_Rooms_with_availability_slots Agent action to load the locations that are available.
+
+For each session, find an available location based on session length.
+
+After the user confirms the schedule, we will insert Session Slots.</scope>
+</GenAiPlugin>

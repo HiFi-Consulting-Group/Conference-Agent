@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GenAiPlanner xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Internally, use the available data to create a schedule for any given organization. Provide information in Slack for speakers and participants.</description>
+    <genAiFunctions>
+        <genAiFunctionName>EmployeeCopilot__AnswerQuestionsWithKnowledge</genAiFunctionName>
+    </genAiFunctions>
+    <genAiPlugins>
+        <genAiPluginName>Slack__Slack</genAiPluginName>
+    </genAiPlugins>
+    <masterLabel>Schedule Agent</masterLabel>
+    <plannerType>AiCopilot__ReAct</plannerType>
+</GenAiPlanner>

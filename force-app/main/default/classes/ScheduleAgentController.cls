@@ -4,7 +4,7 @@ public with sharing class ScheduleAgentController {
         description='This will load all Sesson\'s that do not yet have a Session Slot scheduled'
     )
     public static List<SessionArray> getSessionsToSchedule(List < SessionInput > input) {
-        List < Session__c > sessions = [SELECT Id, Name, Requested_Room_Size__c, Session_Length_Minutes__c, Session_Scheduled_Placeholder__c, (SELECT ID, Speaker__c, Speaker__r.FirstName, Speaker__r.LastName, Speaker__r.Email FROM Session_Speakers__r) FROM Session__c];
+        List < Session__c > sessions = [SELECT Id, Name, Requested_Room_Size__c, Session_Length_Minutes__c, Scheduled__c, (SELECT ID, Speaker__c, Speaker__r.FirstName, Speaker__r.LastName, Speaker__r.Email FROM Session_Speakers__r) FROM Session__c];
 
         List < ScheduleAgentController.Session > sessionsToSchedule = new List < ScheduleAgentController.Session > ();
         for (Session__c ses: sessions) {
@@ -13,13 +13,13 @@ public with sharing class ScheduleAgentController {
                 ScheduleAgentController.Speaker speaker = new ScheduleAgentController.Speaker(sessionSpeaker.Speaker__r.FirstName, sessionSpeaker.Speaker__r.LastName, sessionSpeaker.Speaker__r.Email, sessionSpeaker.Speaker__r.Id);
                 speakerList.add(speaker);
             }
-            ScheduleAgentController.Session session = new ScheduleAgentController.Session(ses.Id, ses.Requested_Room_Size__c, speakerList, Integer.valueOf(ses.Session_Length_Minutes__c), ses.Session_Scheduled_Placeholder__c);
+            ScheduleAgentController.Session session = new ScheduleAgentController.Session(ses.Id, ses.Requested_Room_Size__c, speakerList, Integer.valueOf(ses.Session_Length_Minutes__c), ses.Scheduled__c, ses.Name);
             sessionsToSchedule.add(session);
         }
         System.debug('Sessions to Schedule: ' + JSON.serialize(sessionsToSchedule));
 
-        SessionArray sessionsArray = new SessionArray(sessionsToSchedule);
-        List < SessionArray > sessionsArrayAsList = new List < SessionArray > ();
+        ScheduleAgentController.SessionArray sessionsArray = new ScheduleAgentController.SessionArray(sessionsToSchedule);
+        List < ScheduleAgentController.SessionArray > sessionsArrayAsList = new List < ScheduleAgentController.SessionArray > ();
         sessionsArrayAsList.add(sessionsArray);
         System.debug('Sessions to Schedule: ' + JSON.serialize(sessionsArrayAsList));
         return sessionsArrayAsList;
@@ -64,12 +64,18 @@ public with sharing class ScheduleAgentController {
         )
         public Boolean isScheduled;
 
-        public Session (Id sessionId, String roomSize, List < Speaker > speakers, Integer sessionLength, Boolean isScheduled) {
+        @InvocableVariable(
+            description='Session Name'
+        )
+        public String sessionName;
+
+        public Session (Id sessionId, String roomSize, List < Speaker > speakers, Integer sessionLength, Boolean isScheduled, String sessionName) {
             this.sessionId = sessionId;
             this.roomSize = roomSize;
             this.speakers = speakers;
             this.sessionLength = sessionLength;
             this.isScheduled = isScheduled;
+            this.sessionName = sessionName;
         }
     }
 
