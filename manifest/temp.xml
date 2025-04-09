@@ -16,5 +16,9 @@
         <members>*</members>
         <name>GenAIPlugin</name>
     </types>
+    <types>
+        <members>*</members>
+        <name>ApexClass</name>
+    </types>
     <version>63.0</version>
 </Package>
