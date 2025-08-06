@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GenAiFunction xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Currently just loads Locations, Availbility will be added later</description>
+    <invocationTarget>ScheduleAgentLocationController</invocationTarget>
+    <invocationTargetType>apex</invocationTargetType>
+    <isConfirmationRequired>false</isConfirmationRequired>
+    <isIncludeInProgressIndicator>true</isIncludeInProgressIndicator>
+    <masterLabel>Load Rooms with availability slots</masterLabel>
+    <progressIndicatorMessage>Loading Locations</progressIndicatorMessage>
+</GenAiFunction>

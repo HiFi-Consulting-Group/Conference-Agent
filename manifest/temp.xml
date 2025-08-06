@@ -2,23 +2,7 @@
 <Package xmlns="http://soap.sforce.com/2006/04/metadata">
     <types>
         <members>*</members>
-        <name>CustomField</name>
-    </types>
-    <types>
-        <members>*</members>
-        <name>CustomObject</name>
-    </types>
-    <types>
-        <members>*</members>
-        <name>GenAIPlanner</name>
-    </types>
-    <types>
-        <members>*</members>
-        <name>GenAIPlugin</name>
-    </types>
-    <types>
-        <members>*</members>
-        <name>ApexClass</name>
+        <name>GenAiFunction</name>
     </types>
     <version>63.0</version>
 </Package>

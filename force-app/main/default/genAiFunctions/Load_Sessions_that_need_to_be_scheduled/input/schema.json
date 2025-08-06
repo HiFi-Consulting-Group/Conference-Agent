@@ -1,0 +1,14 @@
+{
+  "required" : [ "useless" ],
+  "unevaluatedProperties" : false,
+  "properties" : {
+    "useless" : {
+      "title" : "useless",
+      "description" : "Useless required variable",
+      "lightning:type" : "lightning__textType",
+      "lightning:isPII" : false,
+      "copilotAction:isUserInput" : false
+    }
+  },
+  "lightning:type" : "lightning__objectType"
+}

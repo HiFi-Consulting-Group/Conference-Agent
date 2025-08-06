@@ -1,0 +1,18 @@
+{
+  "required" : [ "sessionSlotArray" ],
+  "unevaluatedProperties" : false,
+  "properties" : {
+    "sessionSlotArray" : {
+      "title" : "sessionSlotArray",
+      "description" : "Session Slot Array",
+      "maxItems" : 2000,
+      "items" : {
+        "lightning:type" : "@apexClassType/c__ScheduleAgentCreateController$SessionSlot"
+      },
+      "lightning:type" : "lightning__listType",
+      "lightning:isPII" : false,
+      "copilotAction:isUserInput" : false
+    }
+  },
+  "lightning:type" : "lightning__objectType"
+}

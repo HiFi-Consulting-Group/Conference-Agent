@@ -1,4 +1,17 @@
+/**
+ * @description This class is used to manage the scheduling of sessions for Agentforce.
+ *      It provides methods to retrieve sessions that need to be scheduled and create session slots.
+ * @Version 1.0
+ */
 public with sharing class ScheduleAgentController {
+    
+    /**
+     * @description This method is used to retrieve sessions that need to be scheduled.
+     * @Version 1.0
+     * @Param: InvocableMethods called by Agentforce must have an input parameter, we don't actually need any kind of input for this method so it's value is not used.
+     * @Return: A list of SessionArray objects containing the retrieved sessions
+     * @throws: None
+     */
     @InvocableMethod(
         label='Load Sessions that need to be scheduled'
         description='This will load all Sesson\'s that do not yet have a Session Slot scheduled'
