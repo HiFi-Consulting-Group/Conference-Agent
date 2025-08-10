@@ -17,7 +17,7 @@
     <name>CustomObject</name>
   </types>
   <types>
-    <members>Agent_for_Setup</members>
+    <members>Scheduling_Agent_1</members>
     <name>GenAiPlanner</name>
   </types>
   <types>

@@ -1,0 +1,174 @@
+<template>
+    <lightning-card title="Conference Schedule Management" icon-name="standard:event">
+        <div class="slds-p-around_medium">
+            <!-- Loading Spinner -->
+            <template if:true={isLoading}>
+                <div class="slds-is-relative slds-p-around_medium">
+                    <lightning-spinner alternative-text="Invoking Scheduling_Agent_1..." size="medium"></lightning-spinner>
+                    <div class="slds-text-align_center slds-p-top_medium">
+                        <p>Invoking Scheduling_Agent_1 to build your proposed conference schedule...</p>
+                    </div>
+                </div>
+            </template>
+
+            <!-- Main Content -->
+            <template if:false={isLoading}>
+                <!-- Schedule Results -->
+                <template if:true={showResults}>
+                    <div class="slds-box slds-theme_success slds-m-bottom_medium">
+                        <div class="slds-grid slds-grid_align-spread slds-m-bottom_small">
+                            <h2 class="slds-text-heading_medium">Proposed Conference Schedule from Scheduling_Agent_1</h2>
+                            <div class="slds-badge slds-theme_success">
+                                <lightning-icon icon-name="utility:check" size="x-small" class="slds-m-right_xx-small"></lightning-icon>
+                                {proposedSchedule.optimizationScore} Optimized
+                            </div>
+                        </div>
+                        
+                        <p class="slds-m-bottom_medium">{proposedSchedule.recommendations}</p>
+                        
+                        <div class="slds-grid slds-grid_align-spread slds-m-bottom_medium">
+                            <div class="slds-text-body_small">
+                                <strong>Agent:</strong> {proposedSchedule.agentName}
+                            </div>
+                            <div class="slds-text-body_small">
+                                <strong>Processing Time:</strong> {proposedSchedule.processingTime}
+                            </div>
+                            <div class="slds-text-body_small">
+                                <strong>Total Sessions:</strong> {proposedSchedule.totalSessionsScheduled}
+                            </div>
+                        </div>
+                        
+                        <!-- Proposed Schedule Table -->
+                        <template if:true={proposedSchedule.proposedSlots}>
+                            <div class="slds-scrollable_y" style="max-height: 300px;">
+                                <table class="slds-table slds-table_bordered slds-table_cell-buffer">
+                                    <thead>
+                                        <tr class="slds-line-height_reset">
+                                            <th class="slds-text-title_caps" scope="col">Session</th>
+                                            <th class="slds-text-title_caps" scope="col">Location</th>
+                                            <th class="slds-text-title_caps" scope="col">Date</th>
+                                            <th class="slds-text-title_caps" scope="col">Time</th>
+                                            <th class="slds-text-title_caps" scope="col">Duration</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template for:each={proposedSchedule.proposedSlots} for:item="slot">
+                                            <tr key={slot.sessionId}>
+                                                <td>
+                                                    <div class="slds-truncate" title={slot.sessionName}>
+                                                        {slot.sessionName}
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div class="slds-truncate" title={slot.locationName}>
+                                                        {slot.locationName} ({slot.roomSize})
+                                                    </div>
+                                                </td>
+                                                <td>{slot.date}</td>
+                                                <td>{slot.startTime} - {slot.endTime}</td>
+                                                <td>{slot.duration} min</td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </template>
+                        
+                        <!-- Action Buttons for Schedule -->
+                        <div class="slds-m-top_medium slds-text-align_right">
+                            <lightning-button
+                                label="Try Again"
+                                onclick={handleTryAgain}
+                                class="slds-m-right_x-small">
+                            </lightning-button>
+                            <lightning-button
+                                label="Reject Schedule"
+                                variant="destructive"
+                                onclick={handleRejectSchedule}
+                                class="slds-m-right_x-small">
+                            </lightning-button>
+                            <lightning-button
+                                label="Accept Schedule"
+                                variant="brand"
+                                onclick={handleAcceptSchedule}>
+                            </lightning-button>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Schedule Form -->
+                <template if:false={showResults}>
+                    <div class="slds-text-heading_medium slds-m-bottom_medium">
+                        What would you like to do?
+                    </div>
+                    
+                    <lightning-radio-group
+                        name="scheduleOption"
+                        label="Schedule Option"
+                        options={scheduleOptions}
+                        value={selectedOption}
+                        onchange={handleOptionChange}
+                        class="slds-m-bottom_medium">
+                    </lightning-radio-group>
+                    
+                    <!-- Conditional section for new schedule option -->
+                    <template if:true={showEventSelection}>
+                        <div class="slds-box slds-theme_shade slds-m-bottom_medium">
+                            <div class="slds-text-heading_small slds-m-bottom_small">
+                                Select an Event for the New Schedule
+                            </div>
+                            
+                            <template if:true={isLoadingEvents}>
+                                <lightning-spinner alternative-text="Loading events..." size="small"></lightning-spinner>
+                            </template>
+                            
+                            <template if:false={isLoadingEvents}>
+                                <template if:true={hasEvents}>
+                                    <lightning-radio-group
+                                        name="eventSelection"
+                                        label="Available Events"
+                                        options={eventOptions}
+                                        value={selectedEventId}
+                                        onchange={handleEventChange}
+                                        class="slds-m-bottom_medium">
+                                    </lightning-radio-group>
+                                </template>
+                                
+                                <template if:false={hasEvents}>
+                                    <div class="slds-text-color_weak slds-text-align_center">
+                                        No events found. Please create an event first.
+                                    </div>
+                                </template>
+                            </template>
+                        </div>
+                    </template>
+
+                    <!-- Error message display -->
+                    <template if:true={errorMessage}>
+                        <div class="slds-notify slds-notify_alert slds-theme_alert-texture slds-theme_error slds-m-bottom_medium" role="alert">
+                            <span class="slds-assistive-text">error</span>
+                            <lightning-icon icon-name="utility:error" alternative-text="Error" size="x-small" class="slds-m-right_x-small"></lightning-icon>
+                            <h2>{errorMessage}</h2>
+                        </div>
+                    </template>
+                    
+                    <div class="slds-m-top_medium">
+                        <lightning-button
+                            variant="brand"
+                            label="Continue"
+                            onclick={handleContinue}
+                            disabled={isContinueDisabled}
+                            class="slds-m-right_x-small">
+                        </lightning-button>
+                        
+                        <lightning-button
+                            variant="neutral"
+                            label="Cancel"
+                            onclick={handleCancel}>
+                        </lightning-button>
+                    </div>
+                </template>
+            </template>
+        </div>
+    </lightning-card>
+</template>

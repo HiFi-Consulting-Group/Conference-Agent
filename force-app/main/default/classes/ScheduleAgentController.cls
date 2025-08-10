@@ -6,6 +6,24 @@
 public with sharing class ScheduleAgentController {
     
     /**
+     * @description This method is used to retrieve all Event__c records from the database.
+     * @Version 1.0
+     * @Return: A list of Event__c records
+     * @throws: None
+     */
+    @AuraEnabled(cacheable=true)
+    public static List<Event__c> getEvents() {
+        try {
+            return [SELECT Id, Name, Event_Start_Date__c, Event_End_Date__c 
+                    FROM Event__c 
+                    ORDER BY Event_Start_Date__c DESC];
+        } catch (Exception e) {
+            System.debug('Error retrieving events: ' + e.getMessage());
+            throw new AuraHandledException('Failed to retrieve events: ' + e.getMessage());
+        }
+    }
+    
+    /**
      * @description This method is used to retrieve sessions that need to be scheduled.
      * @Version 1.0
      * @Param: InvocableMethods called by Agentforce must have an input parameter, we don't actually need any kind of input for this method so it's value is not used.
@@ -39,6 +57,143 @@ public with sharing class ScheduleAgentController {
 
     }
 
+    /**
+     * @description This method is used to invoke the Scheduling_Agent_1 to build a proposed schedule.
+     * @Version 1.0
+     * @param eventId The ID of the event to schedule
+     * @param context Additional context for the scheduling agent
+     * @return A map containing the agent response and proposed schedule
+     * @throws AuraHandledException if the agent invocation fails
+     */
+    @AuraEnabled
+    public static String invokeSchedulingAgent(String eventId, String context) {
+        try {
+            // Prepare the input for the Scheduling_Agent_1
+            Map<String, Object> agentInput = new Map<String, Object>();
+            agentInput.put('eventId', eventId);
+            agentInput.put('action', 'buildProposedSchedule');
+            agentInput.put('context', context);
+            agentInput.put('timestamp', System.now().format());
+            
+            System.debug('Invoking Scheduling_Agent_1 with input: ' + JSON.serialize(agentInput));
+            
+            // Create the user message for the agent
+            String userMessage = 'Please build a proposed conference schedule for event ID: ' + eventId + 
+                               '. Context: ' + context + 
+                               '. Use the available sessions and locations to create an optimized schedule.';
+            
+            // Invoke our GenerateAiAgentResponse invocable action
+            List<GenerateAiAgentResponse.GenerateAiAgentResponseRequest> requests = new List<GenerateAiAgentResponse.GenerateAiAgentResponseRequest>();
+            GenerateAiAgentResponse.GenerateAiAgentResponseRequest request = new GenerateAiAgentResponse.GenerateAiAgentResponseRequest();
+            request.userMessage = userMessage;
+            request.agentApiName = 'Scheduling_Agent_1';  // Explicitly specify the agent
+            requests.add(request);
+            
+            // Call the invocable method directly
+            List<GenerateAiAgentResponse.GenerateAiAgentResponseResult> results = GenerateAiAgentResponse.generateResponse(requests);
+            
+            if (results != null && !results.isEmpty()) {
+                GenerateAiAgentResponse.GenerateAiAgentResponseResult result = results[0];
+                
+                if (result.success && result.agentResponse != null) {
+                    String agentResponse = result.agentResponse;
+                    
+                    System.debug('Scheduling_Agent_1 raw response: ' + agentResponse);
+                    
+                    // Parse the agent response and structure it for the frontend
+                    Map<String, Object> structuredResponse = parseAgentResponse(agentResponse, eventId);
+                    return JSON.serialize(structuredResponse);
+                } else {
+                    throw new CalloutException('Agent invocation failed: ' + (result.errorMessage != null ? result.errorMessage : 'Unknown error'));
+                }
+            } else {
+                throw new CalloutException('No results received from agent invocation');
+            }
+            
+        } catch (Exception e) {
+            System.debug('Error invoking Scheduling_Agent_1: ' + e.getMessage());
+            System.debug('Stack trace: ' + e.getStackTraceString());
+            throw new AuraHandledException('Failed to invoke Scheduling_Agent_1: ' + e.getMessage());
+        }
+    }
+    
+    /**
+     * @description Parses the agent response and structures it for the frontend
+     * @param agentResponse The raw response from the agent
+     * @param eventId The event ID for additional context
+     * @return A structured map containing the parsed response
+     */
+    private static Map<String, Object> parseAgentResponse(String agentResponse, String eventId) {
+        Map<String, Object> structuredResponse = new Map<String, Object>();
+        
+        try {
+            // Try to parse as JSON first
+            if (agentResponse.startsWith('{') || agentResponse.startsWith('[')) {
+                Map<String, Object> jsonResponse = (Map<String, Object>) JSON.deserializeUntyped(agentResponse);
+                structuredResponse.putAll(jsonResponse);
+            } else {
+                // If not JSON, create a structured response from the text
+                structuredResponse.put('success', true);
+                structuredResponse.put('message', 'Schedule proposal generated successfully by Scheduling_Agent_1');
+                structuredResponse.put('agentName', 'Scheduling_Agent_1');
+                structuredResponse.put('processingTime', 'Real-time processing');
+                structuredResponse.put('timestamp', System.now().format());
+                structuredResponse.put('rawResponse', agentResponse);
+                structuredResponse.put('recommendations', agentResponse);
+            }
+            
+            // Ensure required fields are present
+            if (!structuredResponse.containsKey('success')) {
+                structuredResponse.put('success', true);
+            }
+            if (!structuredResponse.containsKey('agentName')) {
+                structuredResponse.put('agentName', 'Scheduling_Agent_1');
+            }
+            if (!structuredResponse.containsKey('timestamp')) {
+                structuredResponse.put('timestamp', System.now().format());
+            }
+            
+            // Only generate fallback slots if the agent response indicates success
+            // and doesn't contain the expected proposedSlots
+            if (structuredResponse.containsKey('success') && 
+                (Boolean) structuredResponse.get('success') && 
+                (!structuredResponse.containsKey('proposedSlots') || structuredResponse.get('proposedSlots') == null)) {
+                
+                // Check if this is an error response from the agent
+                if (structuredResponse.containsKey('error') && structuredResponse.get('error') != null) {
+                    // Agent returned an error, don't generate fallback slots
+                    System.debug('Agent returned error, not generating fallback slots: ' + structuredResponse.get('error'));
+                } else {
+                    // Agent succeeded but no slots provided - don't generate fake data
+                    // Just log this and let the LWC handle the response as-is
+                    System.debug('Agent succeeded but no proposedSlots provided. Returning response without fallback data.');
+                }
+            }
+            
+            // Set optimization score if not present
+            if (!structuredResponse.containsKey('optimizationScore')) {
+                structuredResponse.put('optimizationScore', 'AI Optimized');
+            }
+            
+            System.debug('Structured response: ' + JSON.serialize(structuredResponse));
+            
+        } catch (Exception e) {
+            System.debug('Error parsing agent response: ' + e.getMessage());
+            // Don't generate fallback slots on parsing errors
+            // Return the raw response with error information
+            structuredResponse.put('success', false);
+            structuredResponse.put('message', 'Failed to parse agent response');
+            structuredResponse.put('agentName', 'Scheduling_Agent_1');
+            structuredResponse.put('processingTime', 'Real-time processing');
+            structuredResponse.put('timestamp', System.now().format());
+            structuredResponse.put('rawResponse', agentResponse);
+            structuredResponse.put('error', e.getMessage());
+            structuredResponse.put('recommendations', 'Agent response could not be parsed. Please check the raw response.');
+        }
+        
+        return structuredResponse;
+    }
+    
     public class SessionArray {
         @InvocableVariable(
             description='Session Array'
@@ -146,5 +301,7 @@ public with sharing class ScheduleAgentController {
         public String useless;
 
     }
+
+
 
 }
