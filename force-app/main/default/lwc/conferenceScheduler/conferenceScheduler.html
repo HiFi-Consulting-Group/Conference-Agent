@@ -20,12 +20,11 @@
                             <h2 class="slds-text-heading_medium">Proposed Conference Schedule from Scheduling_Agent_1</h2>
                             <div class="slds-badge slds-theme_success">
                                 <lightning-icon icon-name="utility:check" size="x-small" class="slds-m-right_xx-small"></lightning-icon>
-                                {proposedSchedule.optimizationScore} Optimized
+                                Schedule Generated
                             </div>
                         </div>
                         
-                        <p class="slds-m-bottom_medium">{proposedSchedule.recommendations}</p>
-                        
+                        <!-- Schedule Summary -->
                         <div class="slds-grid slds-grid_align-spread slds-m-bottom_medium">
                             <div class="slds-text-body_small">
                                 <strong>Agent:</strong> {proposedSchedule.agentName}
@@ -34,43 +33,145 @@
                                 <strong>Processing Time:</strong> {proposedSchedule.processingTime}
                             </div>
                             <div class="slds-text-body_small">
-                                <strong>Total Sessions:</strong> {proposedSchedule.totalSessionsScheduled}
+                                <strong>Total Sessions:</strong> {proposedSchedule.totalSessions}
                             </div>
                         </div>
                         
-                        <!-- Proposed Schedule Table -->
-                        <template if:true={proposedSchedule.proposedSlots}>
-                            <div class="slds-scrollable_y" style="max-height: 300px;">
-                                <table class="slds-table slds-table_bordered slds-table_cell-buffer">
-                                    <thead>
-                                        <tr class="slds-line-height_reset">
-                                            <th class="slds-text-title_caps" scope="col">Session</th>
-                                            <th class="slds-text-title_caps" scope="col">Location</th>
-                                            <th class="slds-text-title_caps" scope="col">Date</th>
-                                            <th class="slds-text-title_caps" scope="col">Time</th>
-                                            <th class="slds-text-title_caps" scope="col">Duration</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <template for:each={proposedSchedule.proposedSlots} for:item="slot">
-                                            <tr key={slot.sessionId}>
-                                                <td>
-                                                    <div class="slds-truncate" title={slot.sessionName}>
-                                                        {slot.sessionName}
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div class="slds-truncate" title={slot.locationName}>
-                                                        {slot.locationName} ({slot.roomSize})
-                                                    </div>
-                                                </td>
-                                                <td>{slot.date}</td>
-                                                <td>{slot.startTime} - {slot.endTime}</td>
-                                                <td>{slot.duration} min</td>
-                                            </tr>
+                        <!-- Schedule Overview -->
+                        <template if:true={formattedScheduleInfo}>
+                            <div class="slds-box slds-theme_shade slds-m-bottom_medium">
+                                <div class="slds-grid slds-grid_align-spread">
+                                    <div class="slds-col slds-size_1-of-4">
+                                        <div class="slds-text-align_center">
+                                            <div class="slds-text-heading_large slds-text-color_success">{proposedSchedule.totalSessions}</div>
+                                            <div class="slds-text-title_caps slds-text-color_weak">Total Sessions</div>
+                                        </div>
+                                    </div>
+                                    <div class="slds-col slds-size_1-of-4">
+                                        <div class="slds-text-align_center">
+                                            <div class="slds-text-heading_large slds-text-color_success">{formattedScheduleInfo.locations.length}</div>
+                                            <div class="slds-text-title_caps slds-text-color_weak">Locations</div>
+                                        </div>
+                                    </div>
+                                    <div class="slds-col slds-size_1-of-4">
+                                        <div class="slds-text-align_center">
+                                            <div class="slds-text-heading_large slds-text-color_success">{formattedScheduleInfo.timeRange}</div>
+                                            <div class="slds-text-title_caps slds-text-color_weak">Duration</div>
+                                        </div>
+                                    </div>
+                                    <div class="slds-col slds-size_1-of-4">
+                                        <div class="slds-text-align_center">
+                                            <div class="slds-text-heading_large slds-text-color_success">{proposedSchedule.timestamp}</div>
+                                            <div class="slds-text-title_caps slds-text-color_weak">Generated</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                        
+                        <!-- Time Range and Locations -->
+                        <template if:true={formattedScheduleInfo}>
+                            <div class="slds-grid slds-grid_align-spread slds-m-bottom_medium">
+                                <div class="slds-text-body_small">
+                                    <strong>Conference Duration:</strong> {formattedScheduleInfo.timeRange}
+                                </div>
+                                <div class="slds-text-body_small">
+                                    <strong>Locations:</strong> {formattedLocationsDisplay}
+                                </div>
+                            </div>
+                        </template>
+                        
+                        <!-- Display truncation warning if present -->
+                        <template if:true={proposedSchedule.note}>
+                            <div class="slds-notify slds-notify_alert slds-theme_warning slds-m-bottom_medium" role="alert">
+                                <span class="slds-assistive-text">warning</span>
+                                <lightning-icon icon-name="utility:warning" alternative-text="Warning" size="small" class="slds-m-right_x-small"></lightning-icon>
+                                <h2 class="slds-notify__content">
+                                    <strong>Note:</strong> {proposedSchedule.note}
+                                </h2>
+                                
+                                <!-- Show raw response for debugging -->
+                                <div class="slds-m-top_small">
+                                    <details class="slds-details">
+                                        <summary class="slds-details__summary slds-details__summary_actionable">
+                                            <svg class="slds-details__summary-action-icon slds-details__summary-action-icon_use" aria-hidden="true">
+                                                <use xlink:href="/assets/icons/utility-sprite/svg/symbols.svg#switch"></use>
+                                            </svg>
+                                            <span class="slds-details__summary-text">View Raw Response</span>
+                                        </summary>
+                                        <div class="slds-details__content slds-p-around_small">
+                                            <pre class="slds-text-body_small slds-border_radius-small slds-p-around_small" style="background-color: #f3f2f2; max-height: 300px; overflow-y: auto;">{proposedSchedule.rawResponse}</pre>
+                                        </div>
+                                    </details>
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- Display partial data warning if data is incomplete -->
+                        <template if:true={proposedSchedule.isPartial}>
+                            <div class="slds-notify slds-notify_alert slds-theme_info slds-m-bottom_medium" role="alert">
+                                <span class="slds-assistive-text">info</span>
+                                <lightning-icon icon-name="utility:info" alternative-text="Information" size="small" class="slds-m-right_x-small"></lightning-icon>
+                                <h2 class="slds-notify__content">
+                                    <strong>Partial Data:</strong> The response was truncated, but we were able to extract {proposedSchedule.totalSessions} complete sessions. 
+                                    Some sessions may be missing or incomplete due to the truncation.
+                                </h2>
+                            </div>
+                        </template>
+                        
+                        <!-- Error Message if Parsing Failed -->
+                        <template if:true={hasScheduleError}>
+                            <div class="slds-notify slds-notify_alert slds-theme_alert-texture slds-theme_error slds-m-bottom_medium" role="alert">
+                                <span class="slds-assistive-text">error</span>
+                                <lightning-icon icon-name="utility:error" alternative-text="Error" size="x-small" class="slds-m-right_x-small"></lightning-icon>
+                                <h2>Schedule Parsing Error</h2>
+                                <p>{scheduleErrorMessage}</p>
+                                <template if:true={proposedSchedule.rawResponse}>
+                                    <details class="slds-m-top_small">
+                                        <summary>View Raw Response</summary>
+                                        <pre class="slds-m-top_x-small slds-p-around_small slds-bg-color_background-alt slds-border_radius-small" style="max-height: 200px; overflow-y: auto; white-space: pre-wrap;">{proposedSchedule.rawResponse}</pre>
+                                    </details>
+                                </template>
+                            </div>
+                        </template>
+                        
+                        <!-- Schedule Table -->
+                        <template if:true={showResults}>
+                            <div class="slds-card slds-m-top_medium">
+                                <div class="slds-card__header">
+                                    <h2 class="slds-card__header-title">
+                                        <span class="slds-text-heading_medium">Proposed Schedule</span>
+                                        <template if:true={proposedSchedule.totalSessions}>
+                                            <span class="slds-text-body_regular slds-m-left_small slds-text-color_weak">
+                                                ({proposedSchedule.totalSessions} sessions)
+                                            </span>
                                         </template>
-                                    </tbody>
-                                </table>
+                                    </h2>
+                                </div>
+                                
+                                <div class="slds-card__body">
+                                    <!-- Show no-data message if no schedule data -->
+                                    <template if:true={hasNoScheduleData}>
+                                        <div class="slds-text-align_center slds-p-vertical_large">
+                                            <lightning-icon icon-name="utility:info" alternative-text="Information" size="medium" class="slds-m-bottom_small"></lightning-icon>
+                                            <p class="slds-text-heading_small slds-text-color_weak">{noDataMessage}</p>
+                                        </div>
+                                    </template>
+                                    
+                                    <!-- Show schedule table if data exists -->
+                                    <template if:false={hasNoScheduleData}>
+                                        <lightning-datatable
+                                            data={formattedScheduleForDisplay}
+                                            columns={scheduleTableColumns}
+                                            key-field="sessionName"
+                                            hide-checkbox-column
+                                            show-row-number-column
+                                            sorted-by={sortBy}
+                                            sorted-direction={sortDirection}
+                                            onsort={handleSort}>
+                                        </lightning-datatable>
+                                    </template>
+                                </div>
                             </div>
                         </template>
                         

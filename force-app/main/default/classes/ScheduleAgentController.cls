@@ -66,54 +66,99 @@ public with sharing class ScheduleAgentController {
      * @throws AuraHandledException if the agent invocation fails
      */
     @AuraEnabled
-    public static String invokeSchedulingAgent(String eventId, String context) {
+    public static Map<String, Object> invokeSchedulingAgent(String userMessage) {
         try {
-            // Prepare the input for the Scheduling_Agent_1
-            Map<String, Object> agentInput = new Map<String, Object>();
-            agentInput.put('eventId', eventId);
-            agentInput.put('action', 'buildProposedSchedule');
-            agentInput.put('context', context);
-            agentInput.put('timestamp', System.now().format());
+            System.debug('Invoking scheduling agent with message: ' + userMessage);
             
-            System.debug('Invoking Scheduling_Agent_1 with input: ' + JSON.serialize(agentInput));
-            
-            // Create the user message for the agent
-            String userMessage = 'Please build a proposed conference schedule for event ID: ' + eventId + 
-                               '. Context: ' + context + 
-                               '. Use the available sessions and locations to create an optimized schedule.';
-            
-            // Invoke our GenerateAiAgentResponse invocable action
-            List<GenerateAiAgentResponse.GenerateAiAgentResponseRequest> requests = new List<GenerateAiAgentResponse.GenerateAiAgentResponseRequest>();
-            GenerateAiAgentResponse.GenerateAiAgentResponseRequest request = new GenerateAiAgentResponse.GenerateAiAgentResponseRequest();
+            // Create the request for the AI agent
+            GenerateAiAgentResponse.GenerateAiAgentResponseRequest request = 
+                new GenerateAiAgentResponse.GenerateAiAgentResponseRequest();
+            request.agentApiName = 'Scheduling_Agent_1';
             request.userMessage = userMessage;
-            request.agentApiName = 'Scheduling_Agent_1';  // Explicitly specify the agent
-            requests.add(request);
+            request.sessionId = null;
             
-            // Call the invocable method directly
-            List<GenerateAiAgentResponse.GenerateAiAgentResponseResult> results = GenerateAiAgentResponse.generateResponse(requests);
+            // Invoke the AI agent
+            List<GenerateAiAgentResponse.GenerateAiAgentResponseResult> results = 
+                GenerateAiAgentResponse.generateResponse(new List<GenerateAiAgentResponse.GenerateAiAgentResponseRequest>{request});
             
             if (results != null && !results.isEmpty()) {
                 GenerateAiAgentResponse.GenerateAiAgentResponseResult result = results[0];
                 
-                if (result.success && result.agentResponse != null) {
-                    String agentResponse = result.agentResponse;
+                if (result.success) {
+                    System.debug('Agent response received successfully');
+                    System.debug('Response length: ' + (result.agentResponse != null ? result.agentResponse.length() : 0));
                     
-                    System.debug('Scheduling_Agent_1 raw response: ' + agentResponse);
+                    // Check if the response is already chunked from GenerateAiAgentResponse
+                    if (result.agentResponse != null && result.agentResponse.contains('"isChunked":true')) {
+                        try {
+                            Map<String, Object> chunkedData = (Map<String, Object>) JSON.deserializeUntyped(result.agentResponse);
+                            if (chunkedData.containsKey('isChunked') && (Boolean) chunkedData.get('isChunked')) {
+                                System.debug('Response is already chunked from GenerateAiAgentResponse');
+                                return new Map<String, Object>{
+                                    'success' => true,
+                                    'isChunked' => true,
+                                    'totalChunks' => chunkedData.get('totalChunks'),
+                                    'chunks' => chunkedData.get('chunks'),
+                                    'totalLength' => chunkedData.get('totalLength'),
+                                    'message' => chunkedData.get('message'),
+                                    'agentResponse' => result.agentResponse
+                                };
+                            }
+                        } catch (JSONException e) {
+                            System.debug('Failed to parse chunked response: ' + e.getMessage());
+                        }
+                    }
                     
-                    // Parse the agent response and structure it for the frontend
-                    Map<String, Object> structuredResponse = parseAgentResponse(agentResponse, eventId);
-                    return JSON.serialize(structuredResponse);
+                    // If not chunked, check if we need to apply chunking ourselves
+                    if (result.agentResponse != null && result.agentResponse.length() > 50000) {
+                        System.debug('Response is large, applying chunking in ScheduleAgentController');
+                        List<String> chunks = splitResponseIntoChunks(result.agentResponse, 50000);
+                        
+                        return new Map<String, Object>{
+                            'success' => true,
+                            'isChunked' => true,
+                            'totalChunks' => chunks.size(),
+                            'chunks' => chunks,
+                            'totalLength' => result.agentResponse.length(),
+                            'message' => 'Response chunked due to size',
+                            'agentResponse' => result.agentResponse
+                        };
+                    }
+                    
+                    // Response is not chunked, return as normal
+                    return new Map<String, Object>{
+                        'success' => true,
+                        'isChunked' => false,
+                        'agentResponse' => result.agentResponse,
+                        'message' => 'Schedule generated successfully'
+                    };
+                    
                 } else {
-                    throw new CalloutException('Agent invocation failed: ' + (result.errorMessage != null ? result.errorMessage : 'Unknown error'));
+                    System.debug('Agent invocation failed: ' + result.errorMessage);
+                    return new Map<String, Object>{
+                        'success' => false,
+                        'message' => 'Failed to generate schedule: ' + result.errorMessage,
+                        'error' => result.errorMessage
+                    };
                 }
             } else {
-                throw new CalloutException('No results received from agent invocation');
+                System.debug('No results received from agent');
+                return new Map<String, Object>{
+                    'success' => false,
+                    'message' => 'No response received from scheduling agent',
+                    'error' => 'Empty response'
+                };
             }
             
         } catch (Exception e) {
-            System.debug('Error invoking Scheduling_Agent_1: ' + e.getMessage());
+            System.debug('Error in invokeSchedulingAgent: ' + e.getMessage());
             System.debug('Stack trace: ' + e.getStackTraceString());
-            throw new AuraHandledException('Failed to invoke Scheduling_Agent_1: ' + e.getMessage());
+            
+            return new Map<String, Object>{
+                'success' => false,
+                'message' => 'Error invoking scheduling agent: ' + e.getMessage(),
+                'error' => e.getMessage()
+            };
         }
     }
     
@@ -127,60 +172,135 @@ public with sharing class ScheduleAgentController {
         Map<String, Object> structuredResponse = new Map<String, Object>();
         
         try {
-            // Try to parse as JSON first
-            if (agentResponse.startsWith('{') || agentResponse.startsWith('[')) {
-                Map<String, Object> jsonResponse = (Map<String, Object>) JSON.deserializeUntyped(agentResponse);
-                structuredResponse.putAll(jsonResponse);
-            } else {
-                // If not JSON, create a structured response from the text
-                structuredResponse.put('success', true);
-                structuredResponse.put('message', 'Schedule proposal generated successfully by Scheduling_Agent_1');
+            System.debug('Parsing agent response with AiAgentResponseParser: ' + agentResponse);
+            Map<String, Object> parsedSchedule;
+            try {
+                parsedSchedule = AiAgentResponseParser.parseScheduleResponse(agentResponse);
+                System.debug('Parsed schedule: ' + JSON.serialize(parsedSchedule));
+                System.debug('Parsed schedule keys: ' + parsedSchedule.keySet());
+                System.debug('Parsed schedule contains error: ' + parsedSchedule.containsKey('error'));
+                if (parsedSchedule.containsKey('error')) {
+                    System.debug('Parsed schedule error: ' + parsedSchedule.get('error'));
+                }
+            } catch (Exception e) {
+                // Parsing failed, return error response
+                structuredResponse.put('success', false);
+                structuredResponse.put('message', 'Failed to parse agent response: ' + e.getMessage());
                 structuredResponse.put('agentName', 'Scheduling_Agent_1');
                 structuredResponse.put('processingTime', 'Real-time processing');
                 structuredResponse.put('timestamp', System.now().format());
                 structuredResponse.put('rawResponse', agentResponse);
-                structuredResponse.put('recommendations', agentResponse);
-            }
-            
-            // Ensure required fields are present
-            if (!structuredResponse.containsKey('success')) {
-                structuredResponse.put('success', true);
-            }
-            if (!structuredResponse.containsKey('agentName')) {
-                structuredResponse.put('agentName', 'Scheduling_Agent_1');
-            }
-            if (!structuredResponse.containsKey('timestamp')) {
-                structuredResponse.put('timestamp', System.now().format());
-            }
-            
-            // Only generate fallback slots if the agent response indicates success
-            // and doesn't contain the expected proposedSlots
-            if (structuredResponse.containsKey('success') && 
-                (Boolean) structuredResponse.get('success') && 
-                (!structuredResponse.containsKey('proposedSlots') || structuredResponse.get('proposedSlots') == null)) {
+                structuredResponse.put('error', e.getMessage());
+                structuredResponse.put('recommendations', 'Agent response could not be parsed. Please check the raw response.');
                 
-                // Check if this is an error response from the agent
-                if (structuredResponse.containsKey('error') && structuredResponse.get('error') != null) {
-                    // Agent returned an error, don't generate fallback slots
-                    System.debug('Agent returned error, not generating fallback slots: ' + structuredResponse.get('error'));
+                System.debug('Parsing failed: ' + e.getMessage());
+                return structuredResponse;
+            }
+
+            // Parsing succeeded, extract schedule fields
+            Map<String, Object> extractedFields = AiAgentResponseParser.extractScheduleFields(parsedSchedule);
+            
+            // Check if the parsing actually succeeded or if it returned an error
+            if (parsedSchedule.containsKey('error')) {
+                System.debug('Parsing returned error: ' + parsedSchedule.get('error'));
+                // The parsedSchedule itself contains an error, so we can't extract fields
+                String errorMessage = String.valueOf(parsedSchedule.get('error'));
+                String recommendation = 'Agent response could not be parsed. ';
+                
+                // Check if this is a truncation issue
+                if (errorMessage.contains('end-of-input') || errorMessage.contains('truncated')) {
+                    recommendation += 'The response appears to be truncated. This may be due to length limits. ';
+                    recommendation += 'Try requesting a smaller schedule or check the raw response for completeness.';
+                } else if (parsedSchedule.containsKey('recommendation')) {
+                    recommendation += String.valueOf(parsedSchedule.get('recommendation'));
                 } else {
-                    // Agent succeeded but no slots provided - don't generate fake data
-                    // Just log this and let the LWC handle the response as-is
-                    System.debug('Agent succeeded but no proposedSlots provided. Returning response without fallback data.');
+                    recommendation += 'Please check the raw response for formatting issues.';
                 }
+                
+                structuredResponse.put('success', false);
+                structuredResponse.put('message', 'Failed to parse agent response: ' + errorMessage);
+                structuredResponse.put('agentName', 'Scheduling_Agent_1');
+                structuredResponse.put('processingTime', 'Real-time processing');
+                structuredResponse.put('timestamp', System.now().format());
+                structuredResponse.put('rawResponse', agentResponse);
+                structuredResponse.put('error', errorMessage);
+                structuredResponse.put('recommendations', recommendation);
+                
+                // Add additional debugging information
+                if (parsedSchedule.containsKey('responseLength')) {
+                    structuredResponse.put('responseLength', parsedSchedule.get('responseLength'));
+                }
+                if (parsedSchedule.containsKey('exceptionType')) {
+                    structuredResponse.put('exceptionType', parsedSchedule.get('exceptionType'));
+                }
+                
+                System.debug('Failed to parse agent response: ' + errorMessage);
+                return structuredResponse;
             }
             
-            // Set optimization score if not present
-            if (!structuredResponse.containsKey('optimizationScore')) {
-                structuredResponse.put('optimizationScore', 'AI Optimized');
+            if (extractedFields.containsKey('error')) {
+                // Schedule structure is invalid
+                structuredResponse.put('success', false);
+                structuredResponse.put('message', 'Invalid schedule structure: ' + extractedFields.get('error'));
+                structuredResponse.put('agentName', 'Scheduling_Agent_1');
+                structuredResponse.put('processingTime', 'Real-time processing');
+                structuredResponse.put('timestamp', System.now().format());
+                structuredResponse.put('rawResponse', agentResponse);
+                structuredResponse.put('error', extractedFields.get('error'));
+                structuredResponse.put('recommendations', 'Schedule structure is invalid. Please check the raw response.');
+                
+                System.debug('Invalid schedule structure: ' + extractedFields.get('error'));
+                return structuredResponse;
             }
             
+            // Create a comprehensive structured response
+            structuredResponse.put('success', true);
+            structuredResponse.put('message', 'Schedule proposal generated successfully by Scheduling_Agent_1');
+            structuredResponse.put('agentName', 'Scheduling_Agent_1');
+            structuredResponse.put('processingTime', 'Real-time processing');
+            structuredResponse.put('timestamp', System.now().format());
+            structuredResponse.put('optimizationScore', 'AI Optimized');
+            
+            // Add the parsed schedule data
+            structuredResponse.put('proposedSchedule', extractedFields.get('sessions'));
+            structuredResponse.put('totalSessions', extractedFields.get('sessionCount'));
+            structuredResponse.put('locations', extractedFields.get('locations'));
+            
+            // Check if this is a partial schedule
+            if (extractedFields.containsKey('isPartialSchedule') && (Boolean) extractedFields.get('isPartialSchedule')) {
+                structuredResponse.put('isPartialSchedule', true);
+                structuredResponse.put('warning', extractedFields.get('warning'));
+                structuredResponse.put('message', 'Partial schedule generated successfully by Scheduling_Agent_1 (response was truncated)');
+            } else {
+                structuredResponse.put('isPartialSchedule', false);
+            }
+            
+            // Create a summary for recommendations
+            Map<String, Object> summary = AiAgentResponseParser.createScheduleSummary(parsedSchedule);
+            if (summary.containsKey('sessionsByLocation')) {
+                structuredResponse.put('sessionsByLocation', summary.get('sessionsByLocation'));
+            }
+            
+            // Add recommendations based on the parsed data
+            String recommendations = 'Successfully parsed ' + extractedFields.get('sessionCount') + ' sessions across ' + 
+                                  ((List<String>) extractedFields.get('locations')).size() + ' locations. ';
+            
+            if (extractedFields.containsKey('isPartialSchedule') && (Boolean) extractedFields.get('isPartialSchedule')) {
+                recommendations += 'NOTE: This is a partial schedule due to response truncation. ';
+                recommendations += 'Consider requesting a smaller schedule for better completeness. ';
+            }
+            
+            recommendations += 'Schedule is optimized for minimal conflicts and optimal room utilization.';
+            structuredResponse.put('recommendations', recommendations);
+            
+            System.debug('Successfully parsed schedule with ' + extractedFields.get('sessionCount') + ' sessions');
             System.debug('Structured response: ' + JSON.serialize(structuredResponse));
             
         } catch (Exception e) {
             System.debug('Error parsing agent response: ' + e.getMessage());
-            // Don't generate fallback slots on parsing errors
-            // Return the raw response with error information
+            System.debug('Stack trace: ' + e.getStackTraceString());
+            
+            // Return error response
             structuredResponse.put('success', false);
             structuredResponse.put('message', 'Failed to parse agent response');
             structuredResponse.put('agentName', 'Scheduling_Agent_1');
@@ -192,6 +312,25 @@ public with sharing class ScheduleAgentController {
         }
         
         return structuredResponse;
+    }
+    
+    /**
+     * @description Splits a large response into smaller chunks to avoid truncation
+     * @param response The response to split
+     * @param maxChunkSize The maximum size of each chunk
+     * @return List of response chunks
+     */
+    private static List<String> splitResponseIntoChunks(String response, Integer maxChunkSize) {
+        List<String> chunks = new List<String>();
+        Integer responseLength = response.length();
+        
+        for (Integer i = 0; i < responseLength; i += maxChunkSize) {
+            Integer endIndex = Math.min(i + maxChunkSize, responseLength);
+            String chunk = response.substring(i, endIndex);
+            chunks.add(chunk);
+        }
+        
+        return chunks;
     }
     
     public class SessionArray {
