@@ -26,7 +26,10 @@ export default class ConferenceScheduler extends LightningElement {
             type: 'text',
             sortable: true,
             wrapText: true,
-            initialWidth: 250
+            initialWidth: 250,
+            cellAttributes: {
+                class: 'slds-cell-buffer'
+            }
         },
         {
             label: 'Speakers',
@@ -44,28 +47,40 @@ export default class ConferenceScheduler extends LightningElement {
             fieldName: 'location',
             type: 'text',
             sortable: true,
-            initialWidth: 150
+            initialWidth: 150,
+            cellAttributes: {
+                class: 'slds-cell-buffer'
+            }
         },
         {
             label: 'Date',
             fieldName: 'displayDate',
             type: 'text',
             sortable: true,
-            initialWidth: 100
+            initialWidth: 100,
+            cellAttributes: {
+                class: 'slds-cell-buffer'
+            }
         },
         {
             label: 'Time',
             fieldName: 'displayTime',
             type: 'text',
             sortable: true,
-            initialWidth: 150
+            initialWidth: 150,
+            cellAttributes: {
+                class: 'slds-cell-buffer'
+            }
         },
         {
             label: 'Duration',
             fieldName: 'displayDuration',
             type: 'text',
             sortable: true,
-            initialWidth: 100
+            initialWidth: 100,
+            cellAttributes: {
+                class: 'slds-cell-buffer'
+            }
         }
     ];
 

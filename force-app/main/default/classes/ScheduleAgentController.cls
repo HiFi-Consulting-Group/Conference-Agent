@@ -87,6 +87,7 @@ public with sharing class ScheduleAgentController {
                 if (result.success) {
                     System.debug('Agent response received successfully');
                     System.debug('Response length: ' + (result.agentResponse != null ? result.agentResponse.length() : 0));
+                    System.debug('Response: ' + JSON.serialize(result.agentResponse));
                     
                     // Check if the response is already chunked from GenerateAiAgentResponse
                     if (result.agentResponse != null && result.agentResponse.contains('"isChunked":true')) {
