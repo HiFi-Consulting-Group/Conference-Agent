@@ -1,6 +1,9 @@
 import { LightningElement, api, track } from 'lwc';
 import getEvents from '@salesforce/apex/ScheduleAgentController.getEvents';
 import invokeSchedulingAgent from '@salesforce/apex/ScheduleAgentController.invokeSchedulingAgent';
+import invokeSchedulingAgentAsync from '@salesforce/apex/ScheduleAgentController.invokeSchedulingAgentAsync';
+import getAsyncSchedulingAgentStatus from '@salesforce/apex/ScheduleAgentController.getAsyncSchedulingAgentStatus';
+import waitForAsyncSchedulingAgent from '@salesforce/apex/ScheduleAgentController.waitForAsyncSchedulingAgent';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 
 export default class ConferenceScheduler extends LightningElement {
@@ -15,8 +18,17 @@ export default class ConferenceScheduler extends LightningElement {
     @track showResults = false;
     @track scheduleOptions = [
         { label: 'Create New Conference Schedule', value: 'new' },
+        { label: 'Create New Conference Schedule (Async)', value: 'new-async' },
         { label: 'Modify Existing Conference Schedule', value: 'modify' }
     ];
+    
+    // Async operation properties
+    @track isAsyncMode = false;
+    @track asyncSessionId = null;
+    @track asyncStatus = null;
+    @track asyncProgress = 0;
+    @track asyncTimeout = 300; // 5 minutes default timeout
+    @track showAsyncProgress = false;
 
     // Table configuration
     scheduleTableColumns = [
@@ -89,7 +101,7 @@ export default class ConferenceScheduler extends LightningElement {
     sortDirection = 'asc';
     
     get showEventSelection() {
-        return this.selectedOption === 'new';
+        return this.selectedOption === 'new' || this.selectedOption === 'new-async';
     }
 
     get hasEvents() {
@@ -112,7 +124,7 @@ export default class ConferenceScheduler extends LightningElement {
 
     handleOptionChange(event) {
         this.selectedOption = event.detail.value;
-        if (this.selectedOption === 'new') {
+        if (this.selectedOption === 'new' || this.selectedOption === 'new-async') {
             this.loadEvents();
         } else {
             this.selectedEventId = '';
@@ -144,6 +156,8 @@ export default class ConferenceScheduler extends LightningElement {
     handleContinue() {
         if (this.selectedOption === 'new') {
             this.buildProposedSchedule();
+        } else if (this.selectedOption === 'new-async') {
+            this.buildProposedScheduleAsync();
         } else if (this.selectedOption === 'modify') {
             this.handleModifySchedule();
         }
@@ -181,7 +195,185 @@ export default class ConferenceScheduler extends LightningElement {
             this.isLoading = false;
         }
     }
+    
+    buildProposedScheduleAsync() {
+        this.isLoading = true;
+        this.errorMessage = '';
+        this.isAsyncMode = true;
+        this.showAsyncProgress = true;
+        this.asyncProgress = 0;
+        
+        try {
+            // Simple message for the agent
+            const userMessage = 'Generate a proposed schedule for the conference with available rooms and time slots.';
+            
+            console.log('Calling async schedule agent with message:', userMessage);
+            
+            // Call the Apex method to initiate the async scheduling agent
+            invokeSchedulingAgentAsync({ userMessage: userMessage })
+                .then(response => {
+                    console.log('Async agent initiation response:', response);
+                    this.handleAsyncAgentInitiation(response);
+                })
+                .catch(error => {
+                    console.error('Error calling async schedule agent:', error);
+                    this.isLoading = false;
+                    this.isAsyncMode = false;
+                    this.showAsyncProgress = false;
+                    this.errorMessage = error.body?.message || error.message || 'Failed to call async schedule agent';
+                });
+            
+        } catch (error) {
+            console.error('Error in buildProposedScheduleAsync:', error);
+            this.errorMessage = 'Failed to build proposed schedule asynchronously. Please try again.';
+            this.isLoading = false;
+            this.isAsyncMode = false;
+            this.showAsyncProgress = false;
+        }
+    }
 
+    handleAsyncAgentInitiation(response) {
+        if (response.success && response.isAsync) {
+            this.asyncSessionId = response.asyncSessionId;
+            this.asyncStatus = 'Processing'; // Set to Processing immediately since the job is queued
+            this.isLoading = false;
+            
+            console.log('Async agent session initiated successfully:', response.asyncSessionId);
+            
+            // Start monitoring the async session
+            this.startAsyncSessionMonitoring();
+            
+            // Show success message
+            this.dispatchEvent(
+                new ShowToastEvent({
+                    title: 'Async Session Started',
+                    message: 'Your schedule request has been submitted and is being processed asynchronously. You can monitor progress below.',
+                    variant: 'success'
+                })
+            );
+        } else {
+            // Handle failure
+            this.isLoading = false;
+            this.isAsyncMode = false;
+            this.showAsyncProgress = false;
+            this.errorMessage = response.message || 'Failed to initiate async session';
+            
+            console.error('Failed to initiate async session:', response);
+        }
+    }
+    
+    startAsyncSessionMonitoring() {
+        if (!this.asyncSessionId) return;
+        
+        // Start polling for status updates
+        this.pollAsyncSessionStatus();
+        
+        // Also set up a progress bar simulation
+        this.simulateAsyncProgress();
+    }
+    
+    pollAsyncSessionStatus() {
+        if (!this.asyncSessionId) return;
+        
+        const pollInterval = setInterval(() => {
+            if (!this.asyncSessionId) {
+                clearInterval(pollInterval);
+                return;
+            }
+            
+            // Check the status of the async session
+            getAsyncSchedulingAgentStatus({ asyncSessionId: this.asyncSessionId })
+                .then(statusResponse => {
+                    console.log('Async session status:', statusResponse);
+                    this.asyncStatus = statusResponse.status;
+                    
+                    if (statusResponse.status === 'Completed') {
+                        clearInterval(pollInterval);
+                        this.handleAsyncAgentCompletion(statusResponse);
+                    } else if (statusResponse.status === 'Failed') {
+                        clearInterval(pollInterval);
+                        this.handleAsyncAgentFailure(statusResponse);
+                    }
+                    // Continue polling for other statuses (Pending, Processing)
+                })
+                .catch(error => {
+                    console.error('Error polling async session status:', error);
+                    // Continue polling on error
+                });
+        }, 2000); // Poll every 2 seconds
+    }
+    
+    simulateAsyncProgress() {
+        if (!this.asyncSessionId) return;
+        
+        const progressInterval = setInterval(() => {
+            if (!this.asyncSessionId || this.asyncStatus === 'Completed' || this.asyncStatus === 'Failed') {
+                clearInterval(progressInterval);
+                return;
+            }
+            
+            // Simulate progress (this is just visual - real progress comes from status updates)
+            if (this.asyncProgress < 90) {
+                this.asyncProgress += Math.random() * 10;
+            }
+        }, 1000); // Update progress every second
+    }
+    
+    handleAsyncAgentCompletion(statusResponse) {
+        this.isLoading = false;
+        this.isAsyncMode = false;
+        this.showAsyncProgress = false;
+        this.asyncProgress = 100;
+        
+        console.log('Async agent session completed successfully');
+        
+        // Parse the agent response similar to synchronous mode
+        if (statusResponse.parsedSchedule) {
+            this.handleAgentResponse({
+                success: true,
+                isChunked: false,
+                agentResponse: statusResponse.agentResponse,
+                message: 'Schedule generated successfully (async)'
+            });
+        } else {
+            // Fallback to parsing the raw response
+            this.handleAgentResponse({
+                success: true,
+                isChunked: false,
+                agentResponse: statusResponse.agentResponse,
+                message: 'Schedule generated successfully (async)'
+            });
+        }
+        
+        // Show success message
+        this.dispatchEvent(
+            new ShowToastEvent({
+                title: 'Schedule Generated',
+                message: 'Your conference schedule has been generated successfully using asynchronous processing.',
+                variant: 'success'
+            })
+            );
+    }
+    
+    handleAsyncAgentFailure(statusResponse) {
+        this.isLoading = false;
+        this.isAsyncMode = false;
+        this.showAsyncProgress = false;
+        
+        console.error('Async agent session failed:', statusResponse);
+        
+        this.errorMessage = statusResponse.errorMessage || 'Async agent session failed';
+        
+        // Show error message
+        this.dispatchEvent(
+            new ShowToastEvent({
+                title: 'Async Session Failed',
+                message: 'The asynchronous schedule generation failed. Please try again or use the synchronous mode.',
+                variant: 'error'
+            })
+        );
+    }
+    
     handleAgentResponse(response) {
         this.isLoading = false;
         
@@ -1089,6 +1281,37 @@ export default class ConferenceScheduler extends LightningElement {
         
         return 'No schedule data available.';
     }
+    
+    get showAsyncControls() {
+        return this.isAsyncMode && this.asyncSessionId;
+    }
+    
+    get isAsyncFailed() {
+        return this.asyncStatus === 'Failed';
+    }
+    
+    get asyncStatusDisplay() {
+        if (!this.asyncStatus) return '';
+        
+        switch (this.asyncStatus) {
+            case 'Pending':
+                return 'Queued for processing';
+            case 'Processing':
+                return 'Currently processing';
+            case 'Completed':
+                return 'Completed successfully';
+            case 'Failed':
+                return 'Failed';
+            case 'Cancelled':
+                return 'Cancelled';
+            default:
+                return this.asyncStatus;
+        }
+    }
+    
+    get asyncProgressBarStyle() {
+        return `width: ${this.asyncProgress}%`;
+    }
 
     /**
      * Formats a session time for display
@@ -1209,7 +1432,56 @@ export default class ConferenceScheduler extends LightningElement {
     handleTryAgain() {
         this.showResults = false;
         this.proposedSchedule = null;
-        this.buildProposedSchedule();
+        if (this.isAsyncMode) {
+            this.buildProposedScheduleAsync();
+        } else {
+            this.buildProposedSchedule();
+        }
+    }
+    
+    handleCancelAsync() {
+        if (this.asyncSessionId) {
+            // Note: In a real implementation, you would call a cancel method
+            // For now, we'll just reset the form
+            console.log('Cancelling async session:', this.asyncSessionId);
+        }
+        
+        this.resetForm();
+        
+        this.dispatchEvent(
+            new ShowToastEvent({
+                title: 'Async Session Cancelled',
+                message: 'The asynchronous schedule generation has been cancelled.',
+                variant: 'info'
+            })
+        );
+    }
+    
+    handleRetryAsync() {
+        if (this.asyncSessionId) {
+            console.log('Retrying async session:', this.asyncSessionId);
+            
+            // Reset the async state for retry
+            this.asyncStatus = 'Pending';
+            this.asyncProgress = 0;
+            this.errorMessage = '';
+            
+            // Show loading state
+            this.isLoading = true;
+            
+            // Call the retry method (you would need to implement this in the controller)
+            // For now, we'll just show a message
+            this.dispatchEvent(
+                new ShowToastEvent({
+                    title: 'Retry Initiated',
+                    message: 'Retrying the asynchronous schedule generation...',
+                    variant: 'info'
+                })
+            );
+            
+            // Reset loading state
+            this.isLoading = false;
+        }
     }
 
     handleModifySchedule() {
@@ -1222,6 +1494,11 @@ export default class ConferenceScheduler extends LightningElement {
         this.selectedOption = '';
         this.selectedEventId = '';
         this.errorMessage = '';
+        this.isAsyncMode = false;
+        this.asyncSessionId = null;
+        this.asyncStatus = null;
+        this.asyncProgress = 0;
+        this.showAsyncProgress = false;
     }
 
     showSuccessMessage(message) {

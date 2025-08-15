@@ -60,8 +60,7 @@ public with sharing class ScheduleAgentController {
     /**
      * @description This method is used to invoke the Scheduling_Agent_1 to build a proposed schedule.
      * @Version 1.0
-     * @param eventId The ID of the event to schedule
-     * @param context Additional context for the scheduling agent
+     * @param userMessage The user message to send to the scheduling agent
      * @return A map containing the agent response and proposed schedule
      * @throws AuraHandledException if the agent invocation fails
      */
@@ -158,6 +157,142 @@ public with sharing class ScheduleAgentController {
             return new Map<String, Object>{
                 'success' => false,
                 'message' => 'Error invoking scheduling agent: ' + e.getMessage(),
+                'error' => e.getMessage()
+            };
+        }
+    }
+    
+    /**
+     * @description Initiates an asynchronous scheduling agent session
+     * @param userMessage The user message to send to the scheduling agent
+     * @return A map containing the async session ID and status
+     * @throws AuraHandledException if the async session initiation fails
+     */
+    @AuraEnabled
+    public static Map<String, Object> invokeSchedulingAgentAsync(String userMessage) {
+        try {
+            System.debug('Initiating async scheduling agent session with message: ' + userMessage);
+
+            userMessage = UserMessage + ' If the response payload size exceeds the allowable limit, split the JSON into multiple sequential responses, ensuring each part is complete and parsable, and explicitly indicate the order of the parts.';
+            
+            // Use the AsyncAgentController to initiate the async session
+            Map<String, Object> asyncResult = AsyncAgentController.initiateAsyncAgentSession(
+                'Scheduling_Agent_1', 
+                userMessage, 
+                null
+            );
+            
+            if (asyncResult.get('success') == true) {
+                System.debug('Async scheduling agent session initiated successfully');
+                return new Map<String, Object>{
+                    'success' => true,
+                    'asyncSessionId' => asyncResult.get('asyncSessionId'),
+                    'status' => 'Processing', // Set to Processing since the job is queued
+                    'message' => 'Async scheduling agent session initiated successfully. You can monitor progress and retrieve results when ready.',
+                    'isAsync' => true
+                };
+            } else {
+                System.debug('Failed to initiate async scheduling agent session: ' + asyncResult.get('error'));
+                return new Map<String, Object>{
+                    'success' => false,
+                    'message' => 'Failed to initiate async scheduling agent session: ' + asyncResult.get('error'),
+                    'error' => asyncResult.get('error')
+                };
+            }
+            
+        } catch (Exception e) {
+            System.debug('Error in invokeSchedulingAgentAsync: ' + e.getMessage());
+            System.debug('Stack trace: ' + e.getStackTraceString());
+            
+            return new Map<String, Object>{
+                'success' => false,
+                'message' => 'Error initiating async scheduling agent session: ' + e.getMessage(),
+                'error' => e.getMessage()
+            };
+        }
+    }
+    
+    /**
+     * @description Retrieves the status and results of an async scheduling agent session
+     * @param asyncSessionId The ID of the async agent session
+     * @return A map containing the session status and results
+     */
+    @AuraEnabled
+    public static Map<String, Object> getAsyncSchedulingAgentStatus(String asyncSessionId) {
+        try {
+            System.debug('Retrieving status for async scheduling agent session: ' + asyncSessionId);
+            
+            // Use the AsyncAgentController to get the session status
+            Map<String, Object> statusResult = AsyncAgentController.getAsyncAgentSessionStatus(asyncSessionId);
+            
+            if (statusResult.get('success') == true) {
+                String status = (String) statusResult.get('status');
+                
+                if (status == 'Completed') {
+                    // Parse the completed agent response
+                    String agentResponse = (String) statusResult.get('agentResponse');
+                    Map<String, Object> parsedResponse = parseAgentResponse(agentResponse, null);
+                    
+                    // Add the parsed response to the result
+                    statusResult.put('parsedSchedule', parsedResponse);
+                    statusResult.put('isChunked', false); // Async responses shouldn't be chunked
+                    
+                } else if (status == 'Failed') {
+                    // Add error information
+                    statusResult.put('error', statusResult.get('errorMessage'));
+                    statusResult.put('message', 'Async scheduling agent session failed');
+                }
+                
+                return statusResult;
+            } else {
+                return statusResult;
+            }
+            
+        } catch (Exception e) {
+            System.debug('Error in getAsyncSchedulingAgentStatus: ' + e.getMessage());
+            System.debug('Stack trace: ' + e.getStackTraceString());
+            
+            return new Map<String, Object>{
+                'success' => false,
+                'message' => 'Error retrieving async scheduling agent status: ' + e.getMessage(),
+                'error' => e.getMessage()
+            };
+        }
+    }
+    
+    /**
+     * @description Waits for an async scheduling agent session to complete with timeout
+     * @param asyncSessionId The ID of the async agent session
+     * @param timeoutSeconds Maximum time to wait in seconds
+     * @return A map containing the session status and results
+     */
+    @AuraEnabled
+    public static Map<String, Object> waitForAsyncSchedulingAgent(String asyncSessionId, Integer timeoutSeconds) {
+        try {
+            System.debug('Waiting for async scheduling agent session completion: ' + asyncSessionId + ' with timeout: ' + timeoutSeconds + 's');
+            
+            // Use the AsyncAgentController to wait for completion
+            Map<String, Object> waitResult = AsyncAgentController.waitForAsyncAgentSession(asyncSessionId, timeoutSeconds);
+            
+            if (waitResult.get('success') == true && waitResult.get('status') == 'Completed') {
+                // Parse the completed agent response
+                String agentResponse = (String) waitResult.get('agentResponse');
+                Map<String, Object> parsedResponse = parseAgentResponse(agentResponse, null);
+                
+                // Add the parsed response to the result
+                waitResult.put('parsedSchedule', parsedResponse);
+                waitResult.put('isChunked', false); // Async responses shouldn't be chunked
+            }
+            
+            return waitResult;
+            
+        } catch (Exception e) {
+            System.debug('Error in waitForAsyncSchedulingAgent: ' + e.getMessage());
+            System.debug('Stack trace: ' + e.getStackTraceString());
+            
+            return new Map<String, Object>{
+                'success' => false,
+                'message' => 'Error waiting for async scheduling agent: ' + e.getMessage(),
                 'error' => e.getMessage()
             };
         }

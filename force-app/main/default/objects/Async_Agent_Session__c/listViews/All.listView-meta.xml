@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ListView xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>All</fullName>
+    <filterScope>Everything</filterScope>
+    <label>All</label>
+    <listViewButtons>true</listViewButtons>
+    <searchLayouts/>
+    <sharedTo>
+        <allCustomerPortalUsers>false</allCustomerPortalUsers>
+        <allInternalUsers>true</allInternalUsers>
+        <allPartnerUsers>false</allPartnerUsers>
+        <channelProgramGroup/>
+        <group/>
+        <groups/>
+        <managerSubordinates>false</managerSubordinates>
+        <managers>false</managers>
+        <portalRole/>
+        <portalRoleAndSubordinates/>
+        <queue/>
+        <role/>
+        <roleAndSubordinates/>
+        <roleAndSubordinatesInternal/>
+        <subordinates/>
+        <territory/>
+        <territoryAndSubordinates/>
+        <territoryAndSubordinatesInternal/>
+        <users/>
+    </sharedTo>
+</ListView> 

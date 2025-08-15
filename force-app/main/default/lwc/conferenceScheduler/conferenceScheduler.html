@@ -10,6 +10,71 @@
                     </div>
                 </div>
             </template>
+            
+            <!-- Async Progress UI -->
+            <template if:true={showAsyncProgress}>
+                <div class="slds-box slds-theme_info slds-m-bottom_medium">
+                    <div class="slds-grid slds-grid_align-spread slds-m-bottom_small">
+                        <h3 class="slds-text-heading_small">
+                            <lightning-icon icon-name="utility:clock" size="small" class="slds-m-right_x-small"></lightning-icon>
+                            Asynchronous Schedule Generation
+                        </h3>
+                        <div class="slds-badge slds-theme_info">
+                            {asyncStatusDisplay}
+                        </div>
+                    </div>
+                    
+                    <!-- Progress Bar -->
+                    <div class="slds-m-bottom_small">
+                        <div class="slds-progress-bar slds-progress-bar_x-small" aria-valuemin="0" aria-valuemax="100" aria-valuenow={asyncProgress} role="progressbar">
+                            <span class="slds-progress-bar__value" style={asyncProgressBarStyle}>
+                                <span class="slds-progress-bar__value-text">{asyncProgress}%</span>
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <!-- Status Information -->
+                    <div class="slds-grid slds-grid_align-spread slds-m-bottom_small">
+                        <div class="slds-text-body_small">
+                            <strong>Session ID:</strong> {asyncSessionId}
+                        </div>
+                        <div class="slds-text-body_small">
+                            <strong>Status:</strong> {asyncStatus}
+                        </div>
+                    </div>
+                    
+                    <!-- Async Controls -->
+                    <template if:true={showAsyncControls}>
+                        <div class="slds-text-align_right">
+                            <template if:true={isAsyncFailed}>
+                                <lightning-button
+                                    label="Retry Async Session"
+                                    variant="brand"
+                                    onclick={handleRetryAsync}
+                                    class="slds-m-right_x-small">
+                                </lightning-button>
+                            </template>
+                            <lightning-button
+                                label="Cancel Async Session"
+                                variant="destructive"
+                                onclick={handleCancelAsync}
+                                class="slds-m-right_x-small">
+                            </lightning-button>
+                        </div>
+                    </template>
+                    
+                    <!-- Information Message -->
+                    <div class="slds-notify slds-notify_alert slds-theme_info slds-m-top_small" role="alert">
+                        <span class="slds-assistive-text">info</span>
+                        <lightning-icon icon-name="utility:info" alternative-text="Information" size="small" class="slds-m-right_x-small"></lightning-icon>
+                        <h2 class="slds-notify__content">
+                            <strong>Asynchronous Processing:</strong> Your schedule request is being processed in the background. 
+                            This allows for longer processing times without blocking the interface. 
+                            You can continue using the application while waiting.
+                        </h2>
+                    </div>
+                </div>
+            </template>
 
             <!-- Main Content -->
             <template if:false={isLoading}>
