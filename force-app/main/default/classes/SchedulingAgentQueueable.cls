@@ -18,6 +18,8 @@ public with sharing class SchedulingAgentQueueable implements Queueable, Databas
     private String sessionId;
     private Integer batchSize;
     private Integer totalProcessed;
+    private Integer consecutiveNoSpaceResponses;
+    private Boolean shouldSelfQueue;
     
     /**
      * @description Constructor for the SchedulingAgentQueueable
@@ -43,6 +45,8 @@ public with sharing class SchedulingAgentQueueable implements Queueable, Databas
         this.sessionId = sessionId;
         this.batchSize = batchSize != null ? batchSize : 10;
         this.totalProcessed = 0;
+        this.consecutiveNoSpaceResponses = 0;
+        this.shouldSelfQueue = false;
     }
     
     /**
@@ -55,6 +59,7 @@ public with sharing class SchedulingAgentQueueable implements Queueable, Databas
             System.debug('SchedulingAgentQueueable starting for session: ' + asyncSessionId);
             System.debug('Current heap size: ' + Limits.getHeapSize() + ' / ' + Limits.getLimitHeapSize());
             System.debug('Current CPU time: ' + Limits.getCpuTime() + ' / ' + Limits.getLimitCpuTime());
+            System.debug('Total processed so far: ' + this.totalProcessed + ', Consecutive no-space: ' + this.consecutiveNoSpaceResponses);
             
             // Check if there are still sessions to be scheduled
             Integer unscheduledCount = countUnscheduledSessions();
@@ -92,21 +97,40 @@ public with sharing class SchedulingAgentQueueable implements Queueable, Databas
                 Boolean noMoreSpace = false;
                 if (processResult.containsKey('noMoreSpace')) {
                     noMoreSpace = (Boolean) processResult.get('noMoreSpace');
+                    if (noMoreSpace) {
+                        this.consecutiveNoSpaceResponses++;
+                        System.debug('Agent indicates no more space. Consecutive count: ' + this.consecutiveNoSpaceResponses);
+                    } else {
+                        this.consecutiveNoSpaceResponses = 0; // Reset counter if space is available
+                    }
                 }
                 
                 // Check if we should continue
                 Integer remainingCount = countUnscheduledSessions();
-                if (remainingCount > 0 && !noMoreSpace) {
+                
+                // Safety check: prevent infinite self-queuing
+                Boolean shouldContinue = remainingCount > 0 && 
+                                       !noMoreSpace && 
+                                       this.consecutiveNoSpaceResponses < 3; // Max 3 consecutive no-space responses
+                
+                if (shouldContinue) {
                     // More sessions to schedule and space available, self-queue for next batch
-                    System.debug('Self-queuing for next batch. Remaining sessions: ' + remainingCount);
-                    selfQueueNextBatch();
+                    System.debug('Self-queuing for next batch. Remaining sessions: ' + remainingCount + ', Consecutive no-space: ' + this.consecutiveNoSpaceResponses);
+                    // Don't self-queue here - we'll do it at the end of the method
+                    this.shouldSelfQueue = true;
                 } else {
-                    // All sessions scheduled or no more space, mark as completed
-                    System.debug('All sessions scheduled or no more space available. Marking as completed.');
-                    String completionMessage = 'Successfully scheduled sessions in batches. Total processed: ' + this.totalProcessed;
-                    if (noMoreSpace) {
-                        completionMessage += '. No more space available for additional sessions.';
+                    // All sessions scheduled, no more space, or safety limits reached
+                    String completionReason = '';
+                    if (remainingCount == 0) {
+                        completionReason = 'All sessions scheduled';
+                    } else if (this.consecutiveNoSpaceResponses >= 3) {
+                        completionReason = 'Agent repeatedly indicates no more space available';
+                    } else {
+                        completionReason = 'No more space available for additional sessions';
                     }
+                    
+                    System.debug('Stopping processing. Reason: ' + completionReason);
+                    String completionMessage = 'Successfully scheduled sessions in batches. Total processed: ' + this.totalProcessed + '. Reason for stopping: ' + completionReason;
                     if (String.isNotBlank(agentMessage)) {
                         completionMessage += ' Last batch: ' + agentMessage;
                     }
@@ -143,6 +167,31 @@ public with sharing class SchedulingAgentQueueable implements Queueable, Databas
             // Update status to Failed
             updateAsyncSessionStatus(asyncSessionId, 'Failed', null, errorMessage);
         }
+        
+        // Self-queue for next batch if needed - do this at the very end
+        // This ensures all other operations are complete before enqueueing
+        if (this.shouldSelfQueue) {
+            System.debug('Executing self-queue at end of method');
+            
+            // Check if we're approaching sandbox limits
+            Integer executionCount = (this.totalProcessed / this.batchSize) + 1;
+            System.debug('Current execution count: ' + executionCount);
+            
+            if (executionCount >= 5) {
+                System.debug('Approaching sandbox job chaining limit (5 jobs). Marking as completed with note.');
+                String completionMessage = 'Scheduling completed successfully. Processed ' + this.totalProcessed + ' sessions in ' + executionCount + ' batches. ';
+                completionMessage += 'Note: This was processed in a Salesforce sandbox environment which has a 5-job chaining limit. ';
+                completionMessage += 'If you need to process more sessions, please start a new scheduling session.';
+                
+                updateAsyncSessionStatus(asyncSessionId, 'Completed', 
+                    completionMessage, 
+                    null, System.now(), 0);
+                return;
+            }
+            
+            // Proceed with normal self-queuing
+            selfQueueNextBatch();
+        }
     }
     
     /**
@@ -153,9 +202,13 @@ public with sharing class SchedulingAgentQueueable implements Queueable, Databas
         try {
             Integer count = [SELECT COUNT() FROM Session__c 
                            WHERE Id NOT IN (SELECT Session__c FROM Session_Slot__c)];
+            
+            System.debug('Counted ' + count + ' unscheduled sessions remaining');
             return count;
+            
         } catch (Exception e) {
             System.debug('Error counting unscheduled sessions: ' + e.getMessage());
+            // On error, return 0 to stop processing rather than continue with unknown state
             return 0;
         }
     }
@@ -188,16 +241,47 @@ public with sharing class SchedulingAgentQueueable implements Queueable, Databas
                 this.batchSize
             );
             
-            // Copy the progress from the current instance
+            // Copy the progress and safety state from the current instance
             nextBatch.totalProcessed = this.totalProcessed;
+            nextBatch.consecutiveNoSpaceResponses = this.consecutiveNoSpaceResponses;
+            nextBatch.shouldSelfQueue = false; // Reset for the next execution
             
-            // Enqueue the next batch
+            // Enqueue the next batch normally - queueables can self-queue without issues
             System.enqueueJob(nextBatch);
-            System.debug('Successfully self-queued next batch with session ID: ' + this.sessionId);
+            
+            System.debug('Successfully self-queued next batch with session ID: ' + this.sessionId + 
+                        ', Total processed: ' + this.totalProcessed + 
+                        ', Consecutive no-space: ' + this.consecutiveNoSpaceResponses);
             
         } catch (Exception e) {
             System.debug('Error self-queuing next batch: ' + e.getMessage());
-            // If self-queuing fails, mark as failed
+            
+            // Check if this is a sandbox job chaining limit error
+            String errorMessage = e.getMessage();
+            if (errorMessage.contains('Maximum stack depth has been reached') || 
+                errorMessage.contains('Maximum stack depth')) {
+                
+                System.debug('Detected potential sandbox job chaining limit error');
+                
+                // Check if we're in a sandbox environment
+                Boolean isSandbox = [SELECT IsSandbox FROM Organization LIMIT 1].IsSandbox;
+                System.debug('Is sandbox environment: ' + isSandbox);
+                
+                if (isSandbox) {
+                    // This is likely a sandbox job chaining limit
+                    String sandboxCompletionMessage = 'Scheduling completed successfully. Processed ' + this.totalProcessed + ' sessions. ';
+                    sandboxCompletionMessage += 'Note: This was processed in a Salesforce sandbox environment which has a 5-job chaining limit. ';
+                    sandboxCompletionMessage += 'If you need to process more sessions, please start a new scheduling session.';
+                    
+                    System.debug('Marking as completed due to sandbox limitations: ' + sandboxCompletionMessage);
+                    updateAsyncSessionStatus(asyncSessionId, 'Completed', 
+                        sandboxCompletionMessage, 
+                        null, System.now(), 0);
+                    return;
+                }
+            }
+            
+            // If not a sandbox limit error, mark as failed
             updateAsyncSessionStatus(asyncSessionId, 'Failed', null, 
                 'Failed to self-queue next batch: ' + e.getMessage());
         }

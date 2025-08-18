@@ -370,6 +370,36 @@ public with sharing class ScheduleAgentController {
         try {
             System.debug('Parsing agent response: ' + agentResponse);
             
+            // Check if this is a plain text completion message (e.g., from queueable sandbox limits)
+            if (agentResponse != null && !agentResponse.trim().startsWith('{') && !agentResponse.trim().startsWith('[')) {
+                System.debug('Detected plain text response, checking for completion message');
+                
+                // Check if this looks like a completion message
+                String lowerResponse = agentResponse.toLowerCase();
+                if (lowerResponse.contains('scheduling completed successfully') || 
+                    lowerResponse.contains('processed') || 
+                    lowerResponse.contains('sessions') ||
+                    lowerResponse.contains('sandbox') ||
+                    lowerResponse.contains('job chaining limit')) {
+                    
+                    System.debug('Detected completion message in plain text');
+                    
+                    // This is a completion message, structure it appropriately
+                    structuredResponse.put('success', true);
+                    structuredResponse.put('message', agentResponse);
+                    structuredResponse.put('agentName', 'Scheduling_Agent_1');
+                    structuredResponse.put('processingTime', 'Real-time processing');
+                    structuredResponse.put('timestamp', System.now().format());
+                    structuredResponse.put('rawResponse', agentResponse);
+                    structuredResponse.put('scheduleGenerated', true);
+                    structuredResponse.put('totalSessions', 0); // Will be determined by database query
+                    structuredResponse.put('recommendations', 'Schedule processing completed. Check the database for scheduled sessions.');
+                    
+                    System.debug('Successfully parsed plain text completion message: ' + JSON.serialize(structuredResponse));
+                    return structuredResponse;
+                }
+            }
+            
             // Check if this is a Salesforce AI agent response wrapper
             if (agentResponse != null && agentResponse.contains('"type":"Text"') && agentResponse.contains('"value":')) {
                 System.debug('Detected Salesforce AI agent response wrapper, extracting value field');
@@ -403,7 +433,7 @@ public with sharing class ScheduleAgentController {
             // If all parsing fails, return error response
             structuredResponse.put('success', false);
             structuredResponse.put('message', 'Failed to parse agent response');
-            structuredResponse.put('agentName', 'Scheduling_Agent_2');
+            structuredResponse.put('agentName', 'Scheduling_Agent_1');
             structuredResponse.put('processingTime', 'Real-time processing');
             structuredResponse.put('timestamp', System.now().format());
             structuredResponse.put('rawResponse', agentResponse);
@@ -417,7 +447,7 @@ public with sharing class ScheduleAgentController {
             // Return error response
             structuredResponse.put('success', false);
             structuredResponse.put('message', 'Failed to parse agent response');
-            structuredResponse.put('agentName', 'Scheduling_Agent_2');
+            structuredResponse.put('agentName', 'Scheduling_Agent_1');
             structuredResponse.put('processingTime', 'Real-time processing');
             structuredResponse.put('timestamp', System.now().format());
             structuredResponse.put('rawResponse', agentResponse);

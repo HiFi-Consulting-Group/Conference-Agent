@@ -383,6 +383,42 @@ export default class ConferenceScheduler extends LightningElement {
         console.log('=== handleAsyncAgentCompletion debugging ===');
         console.log('statusResponse keys:', Object.keys(statusResponse));
         console.log('statusResponse.parsedSchedule:', statusResponse.parsedSchedule);
+        console.log('statusResponse.agentResponse:', statusResponse.agentResponse);
+        
+        // Check if we have a direct agent response (e.g., completion message from queueable)
+        if (statusResponse.agentResponse && !statusResponse.agentResponse.startsWith('{')) {
+            console.log('Found direct agent response (likely completion message)');
+            
+            // This is a plain text completion message, use it directly
+            const completionMessage = statusResponse.agentResponse;
+            
+            // Show success message
+            this.dispatchEvent(
+                new ShowToastEvent({
+                    title: 'Schedule Processing Completed',
+                    message: completionMessage,
+                    variant: 'success'
+                })
+            );
+            
+            // Update the proposedSchedule to indicate success
+            this.proposedSchedule = {
+                success: true,
+                schedule: [], // We'll query the database for actual slots
+                totalSessions: 0, // Will be determined by database query
+                locations: [],
+                timeRange: { start: null, end: null },
+                message: completionMessage,
+                error: null,
+                note: 'Schedule processing completed. Querying database for scheduled sessions...'
+            };
+            
+            this.showResults = true;
+            
+            // Query the database for the actual scheduled sessions
+            this.queryScheduledSessions();
+            return;
+        }
         
         // Check if the backend successfully parsed the agent response
         if (statusResponse.parsedSchedule && statusResponse.parsedSchedule.success) {
@@ -442,13 +478,21 @@ export default class ConferenceScheduler extends LightningElement {
             // Backend parsing succeeded but agent reported failure
             console.error('Agent reported failure:', statusResponse.parsedSchedule.error);
             
-            this.errorMessage = statusResponse.parsedSchedule.error || 'Agent reported failure';
+            // Check if we have a more informative message in the raw response
+            let errorMessage = statusResponse.parsedSchedule.error || 'Agent reported failure';
+            if (statusResponse.parsedSchedule.rawResponse && 
+                !statusResponse.parsedSchedule.rawResponse.startsWith('{')) {
+                // Use the raw response if it's more informative
+                errorMessage = statusResponse.parsedSchedule.rawResponse;
+            }
+            
+            this.errorMessage = errorMessage;
             
             // Show error message
             this.dispatchEvent(
                 new ShowToastEvent({
                     title: 'Schedule Generation Failed',
-                    message: statusResponse.parsedSchedule.error || 'Failed to generate schedule. Please check the error details.',
+                    message: errorMessage,
                     variant: 'error'
                 })
             );
@@ -457,13 +501,18 @@ export default class ConferenceScheduler extends LightningElement {
             // Backend parsing failed or no parsedSchedule available
             console.error('Backend parsing failed or no parsedSchedule available');
             
-            this.errorMessage = 'Failed to parse agent response';
+            // Check if we have a direct agent response we can use
+            if (statusResponse.agentResponse) {
+                this.errorMessage = statusResponse.agentResponse;
+            } else {
+                this.errorMessage = 'Failed to parse agent response';
+            }
             
             // Show error message
             this.dispatchEvent(
                 new ShowToastEvent({
                     title: 'Schedule Generation Failed',
-                    message: 'Failed to parse agent response. Please check the error details.',
+                    message: this.errorMessage,
                     variant: 'error'
                 })
             );
