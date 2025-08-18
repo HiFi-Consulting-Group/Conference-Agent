@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GenAiFunction xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Loads all sessions and organizes them by slot status (no slots, draft slots, finalized slots)</description>
+    <invocationTarget>SessionLoader</invocationTarget>
+    <invocationTargetType>apex</invocationTargetType>
+    <isConfirmationRequired>false</isConfirmationRequired>
+    <isIncludeInProgressIndicator>true</isIncludeInProgressIndicator>
+    <masterLabel>Load Sessions Organized by Slot Status</masterLabel>
+    <progressIndicatorMessage>Loading sessions organized by slot status...</progressIndicatorMessage>
+</GenAiFunction>

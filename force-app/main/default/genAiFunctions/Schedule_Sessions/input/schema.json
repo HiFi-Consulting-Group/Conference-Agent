@@ -1,0 +1,14 @@
+{
+  "required" : [ "sessionSlotsJsonList" ],
+  "unevaluatedProperties" : false,
+  "properties" : {
+    "sessionSlotsJsonList" : {
+      "title" : "sessionSlotsJsonList",
+      "description" : "Provide the agent with an array of SessionSlot records to be upserted. They should be passed as a list of Strings, the first of which contains JSON in the following format: \n[\n  {\n    \"sessionSlotId\": \"a0C1c0000012345\",\n    \"sessionId\": \"a0A1a0000012345\",\n    \"sessionLocationId\": \"a0B1b0000012345\",\n    \"slotDate\": \"2024-06-15\",\n    \"startTime\": \"09:00:00.000Z\",\n    \"endTime\": \"10:30:00.000Z\",\n    \"sessionName\": \"Introduction to AI\",\n    \"locationName\": \"Main Ballroom A\",\n    \"roomCapacity\": 200,\n    \"roomSize\": \"Large (151+)\",\n    \"isDraft\": false\n  },\n  {\n    \"sessionSlotId\": null,\n    \"sessionId\": \"a0A1a0000012346\",\n    \"sessionLocationId\": \"a0B1b0000012346\",\n    \"slotDate\": \"2024-06-15\",\n    \"startTime\": \"11:00:00.000Z\",\n    \"endTime\": \"12:00:00.000Z\",\n    \"sessionName\": \"Advanced Machine Learning\",\n    \"locationName\": \"Conference Room B\",\n    \"roomCapacity\": 50,\n    \"roomSize\": \"Medium (50-150)\",\n    \"isDraft\": true\n  }\n]",
+      "lightning:type" : "lightning__textType",
+      "lightning:isPII" : false,
+      "copilotAction:isUserInput" : false
+    }
+  },
+  "lightning:type" : "lightning__objectType"
+}

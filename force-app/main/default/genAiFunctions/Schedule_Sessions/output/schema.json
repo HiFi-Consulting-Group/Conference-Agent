@@ -1,0 +1,50 @@
+{
+  "unevaluatedProperties" : false,
+  "properties" : {
+    "errorMessages" : {
+      "title" : "errorMessages",
+      "description" : "The method will return a List of SessionScheduleResponse records, the first of which will contain a response in this format:\n[{\n  \"upsertedCount\": 1,\n  \"failedCount\": 2,\n  \"errorMessages\": [\n    \"Session Slot 2: Field Session_Location__c cannot be null; \",\n    \"Session Slot 3: Invalid date format for field Date__c; \"\n  ],\n  \"upsertedIds\": [\n    \"a0C1c0000012345\"\n  ]\n}]",
+      "maxItems" : 2000,
+      "items" : {
+        "lightning:type" : "lightning__textType"
+      },
+      "lightning:type" : "lightning__listType",
+      "lightning:isPII" : false,
+      "copilotAction:isDisplayable" : false,
+      "copilotAction:isUsedByPlanner" : true,
+      "copilotAction:useHydratedPrompt" : false
+    },
+    "failedCount" : {
+      "title" : "failedCount",
+      "description" : "Number of session slots that failed to upsert",
+      "lightning:type" : "lightning__integerType",
+      "lightning:isPII" : false,
+      "copilotAction:isDisplayable" : false,
+      "copilotAction:isUsedByPlanner" : true,
+      "copilotAction:useHydratedPrompt" : false
+    },
+    "upsertedCount" : {
+      "title" : "upsertedCount",
+      "description" : "Number of session slots successfully upserted",
+      "lightning:type" : "lightning__integerType",
+      "lightning:isPII" : false,
+      "copilotAction:isDisplayable" : false,
+      "copilotAction:isUsedByPlanner" : true,
+      "copilotAction:useHydratedPrompt" : false
+    },
+    "upsertedIds" : {
+      "title" : "upsertedIds",
+      "description" : "IDs of successfully upserted session slots",
+      "maxItems" : 2000,
+      "items" : {
+        "lightning:type" : "lightning__recordIdType"
+      },
+      "lightning:type" : "lightning__listType",
+      "lightning:isPII" : false,
+      "copilotAction:isDisplayable" : false,
+      "copilotAction:isUsedByPlanner" : true,
+      "copilotAction:useHydratedPrompt" : false
+    }
+  },
+  "lightning:type" : "lightning__objectType"
+}

@@ -1,8 +1,13 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Package xmlns="http://soap.sforce.com/2006/04/metadata">
     <types>
-    <members>Scheduling_Agent_1</members>
-    <name>GenAiPlanner</name>
+    <members>Load_Sessions_that_need_to_be_scheduled</members>
+    <members>Load_Rooms_with_availability_slots</members>
+    <members>Insert_Session_Slot_records_to_complete_scheduling</members>
+    <members>Load_Unscheduled_Sessions_In_Batches</members>
+    <members>Load_Sessions_Organized_by_Slot_Status</members>
+    <members>Load_Event_by_ID</members>
+    <name>genAiFunction</name>
   </types>
     <version>63.0</version>
 </Package>

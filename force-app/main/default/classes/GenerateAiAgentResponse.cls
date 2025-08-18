@@ -72,8 +72,11 @@ public with sharing class GenerateAiAgentResponse {
             List<Invocable.Action.Result> results = action.invoke();
             
             System.debug('Agent response received: ' + results);
+
+            
             
             if (results != null && !results.isEmpty()) {
+
                 // The agent should return a response object
                 Invocable.Action.Result result = results[0];
                 System.debug('Result: ' + result);

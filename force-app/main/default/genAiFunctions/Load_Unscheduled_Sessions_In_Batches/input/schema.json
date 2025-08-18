@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "properties": {
+    "sessionLimit": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      },
+      "description": "The maximum number of sessions to return (0 = no limit)"
+    }
+  },
+  "required": ["sessionLimit"]
+} 

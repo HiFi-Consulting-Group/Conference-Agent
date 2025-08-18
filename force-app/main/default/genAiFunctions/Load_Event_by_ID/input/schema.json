@@ -1,0 +1,14 @@
+{
+  "required" : [ "eventIds" ],
+  "unevaluatedProperties" : false,
+  "properties" : {
+    "eventIds" : {
+      "title" : "eventIds",
+      "description" : "Provide the Event ID that was requested when the session was invoked",
+      "lightning:type" : "lightning__recordIdType",
+      "lightning:isPII" : false,
+      "copilotAction:isUserInput" : false
+    }
+  },
+  "lightning:type" : "lightning__objectType"
+}

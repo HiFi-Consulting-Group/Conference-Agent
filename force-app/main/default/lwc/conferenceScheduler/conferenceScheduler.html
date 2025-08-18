@@ -20,7 +20,12 @@
                             Asynchronous Schedule Generation
                         </h3>
                         <div class="slds-badge slds-theme_info">
-                            {asyncStatusDisplay}
+                            <template if:true={isWaitingForParts}>
+                                Waiting for Parts...
+                            </template>
+                            <template if:false={isWaitingForParts}>
+                                {asyncStatusDisplay}
+                            </template>
                         </div>
                     </div>
                     

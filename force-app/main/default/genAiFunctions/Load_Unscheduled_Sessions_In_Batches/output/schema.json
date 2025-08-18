@@ -1,0 +1,109 @@
+{
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "sessionId": {
+        "type": "string",
+        "description": "Session Record Id"
+      },
+      "sessionName": {
+        "type": "string",
+        "description": "Session Name"
+      },
+      "eventId": {
+        "type": "string",
+        "description": "Event this session belongs to"
+      },
+      "sessionAbstract": {
+        "type": "string",
+        "description": "Session Abstract/Description"
+      },
+      "format": {
+        "type": "string",
+        "description": "Session Format (Presentation, Demo, HOT, Panel, Keynote)"
+      },
+      "focus": {
+        "type": "string",
+        "description": "Session Focus Area"
+      },
+      "requestedRoomSize": {
+        "type": "string",
+        "description": "Requested Room Size (Small, Medium, Large)"
+      },
+      "sessionLengthMinutes": {
+        "type": "number",
+        "description": "Session Length in Minutes"
+      },
+      "speakers": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "sessionSpeakerId": {
+              "type": "string",
+              "description": "Session Speaker Record Id"
+            },
+            "sessionId": {
+              "type": "string",
+              "description": "Session this speaker is associated with"
+            },
+            "speakerId": {
+              "type": "string",
+              "description": "Speaker Contact Id"
+            },
+            "speakerFirstName": {
+              "type": "string",
+              "description": "Speaker First Name"
+            },
+            "speakerLastName": {
+              "type": "string",
+              "description": "Speaker Last Name"
+            },
+            "speakerFullName": {
+              "type": "string",
+              "description": "Speaker Full Name"
+            },
+            "speakerEmail": {
+              "type": "string",
+              "description": "Speaker Email"
+            },
+            "speakerCompany": {
+              "type": "string",
+              "description": "Speaker Company/Organization"
+            },
+            "speakerTitle": {
+              "type": "string",
+              "description": "Speaker Title/Role"
+            }
+          }
+        },
+        "description": "List of speakers for this session"
+      },
+      "isScheduled": {
+        "type": "boolean",
+        "description": "Whether the session has been scheduled (read-only)"
+      },
+      "sessionSlotCount": {
+        "type": "number",
+        "description": "Number of Session Slots (read-only)"
+      },
+      "hasDraftSessionSlot": {
+        "type": "boolean",
+        "description": "Whether the session has a draft session slot (read-only)"
+      },
+      "hasFinalizedSessionSlot": {
+        "type": "boolean",
+        "description": "Whether the session has a finalized session slot (read-only)"
+      },
+      "sessionSlots": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        },
+        "description": "List of session slots for this session"
+      }
+    }
+  },
+  "description": "List of Session wrapper objects for unscheduled sessions"
+} 

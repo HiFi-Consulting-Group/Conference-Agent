@@ -68,6 +68,8 @@ public with sharing class ScheduleAgentController {
     public static Map<String, Object> invokeSchedulingAgent(String userMessage) {
         try {
             System.debug('Invoking scheduling agent with message: ' + userMessage);
+
+            userMessage = userMessage + '. Please format your response as a simple JSON object indicating success or failure: { "success": boolean, "message": "string", "slotsUpserted": number }. For example: { "success": true, "message": "Successfully scheduled sessions", "slotsUpserted": 15 } or { "success": false, "message": "Failed to schedule sessions", "slotsUpserted": 0 }. Ensure the response is complete and properly formatted JSON.';
             
             // Create the request for the AI agent
             GenerateAiAgentResponse.GenerateAiAgentResponseRequest request = 
@@ -85,7 +87,7 @@ public with sharing class ScheduleAgentController {
                 
                 if (result.success) {
                     System.debug('Agent response received successfully');
-                    System.debug('Response length: ' + (result.agentResponse != null ? result.agentResponse.length() : 0));
+                    System.debug('Response length: ' + (result.agentResponse != null ? String.valueOf(result.agentResponse.length()) : '0'));
                     System.debug('Response: ' + JSON.serialize(result.agentResponse));
                     
                     // Check if the response is already chunked from GenerateAiAgentResponse
@@ -163,7 +165,8 @@ public with sharing class ScheduleAgentController {
     }
     
     /**
-     * @description Initiates an asynchronous scheduling agent session
+     * @description Initiates an asynchronous scheduling agent session using a dedicated queueable
+     * This provides increased heap and CPU limits compared to the standard async implementation
      * @param userMessage The user message to send to the scheduling agent
      * @return A map containing the async session ID and status
      * @throws AuraHandledException if the async session initiation fails
@@ -171,34 +174,48 @@ public with sharing class ScheduleAgentController {
     @AuraEnabled
     public static Map<String, Object> invokeSchedulingAgentAsync(String userMessage) {
         try {
-            System.debug('Initiating async scheduling agent session with message: ' + userMessage);
 
-            userMessage = UserMessage + ' If the response payload size exceeds the allowable limit, split the JSON into multiple sequential responses, ensuring each part is complete and parsable, and explicitly indicate the order of the parts.';
+            userMessage = userMessage + '. Please format your response as a simple JSON object indicating success or failure: { "success": boolean, "message": "string", "slotsUpserted": number }. For example: { "success": true, "message": "Successfully scheduled sessions", "slotsUpserted": 15 } or { "success": false, "message": "Failed to schedule sessions", "slotsUpserted": 0 }. Ensure the response is complete and properly formatted JSON.';
+
+            System.debug('Initiating async scheduling agent session with message: ' + userMessage);
             
-            // Use the AsyncAgentController to initiate the async session
-            Map<String, Object> asyncResult = AsyncAgentController.initiateAsyncAgentSession(
-                'Scheduling_Agent_1', 
+            // Create the async session record directly
+            Async_Agent_Session__c asyncSession = new Async_Agent_Session__c(
+                Agent_API_Name__c = 'Scheduling_Agent_1',
+                User_Message__c = userMessage,
+                Session_ID__c = null,
+                Status__c = 'Pending',
+                Started_At__c = System.now()
+            );
+            
+            insert asyncSession;
+            
+            System.debug('Created async session with ID: ' + asyncSession.Id);
+            
+            // Enqueue the dedicated scheduling agent queueable for increased limits
+            SchedulingAgentQueueable executor = new SchedulingAgentQueueable(
+                asyncSession.Id, 
                 userMessage, 
                 null
             );
             
-            if (asyncResult.get('success') == true) {
-                System.debug('Async scheduling agent session initiated successfully');
-                return new Map<String, Object>{
-                    'success' => true,
-                    'asyncSessionId' => asyncResult.get('asyncSessionId'),
-                    'status' => 'Processing', // Set to Processing since the job is queued
-                    'message' => 'Async scheduling agent session initiated successfully. You can monitor progress and retrieve results when ready.',
-                    'isAsync' => true
-                };
-            } else {
-                System.debug('Failed to initiate async scheduling agent session: ' + asyncResult.get('error'));
-                return new Map<String, Object>{
-                    'success' => false,
-                    'message' => 'Failed to initiate async scheduling agent session: ' + asyncResult.get('error'),
-                    'error' => asyncResult.get('error')
-                };
-            }
+            System.enqueueJob(executor);
+            
+            System.debug('Enqueued SchedulingAgentQueueable for increased limits');
+            
+            // Update the session status to Processing since the job is now queued
+            // This is safe to do here because we're not making any callouts
+            asyncSession.Status__c = 'Processing';
+            update asyncSession;
+            
+            return new Map<String, Object>{
+                'success' => true,
+                'asyncSessionId' => asyncSession.Id,
+                'status' => 'Processing', // Set to Processing since the job is queued
+                'message' => 'Async scheduling agent session initiated successfully with increased resource limits. You can monitor progress and retrieve results when ready.',
+                'isAsync' => true,
+                'queueableType' => 'SchedulingAgentQueueable'
+            };
             
         } catch (Exception e) {
             System.debug('Error in invokeSchedulingAgentAsync: ' + e.getMessage());
@@ -224,12 +241,13 @@ public with sharing class ScheduleAgentController {
             
             // Use the AsyncAgentController to get the session status
             Map<String, Object> statusResult = AsyncAgentController.getAsyncAgentSessionStatus(asyncSessionId);
+            System.debug('statusResult:....'+ JSON.serialize(statusResult));
             
             if (statusResult.get('success') == true) {
                 String status = (String) statusResult.get('status');
                 
                 if (status == 'Completed') {
-                    // Parse the completed agent response
+                    // The agent response now contains success/failure status, not schedule data
                     String agentResponse = (String) statusResult.get('agentResponse');
                     Map<String, Object> parsedResponse = parseAgentResponse(agentResponse, null);
                     
@@ -261,40 +279,82 @@ public with sharing class ScheduleAgentController {
     }
     
     /**
-     * @description Waits for an async scheduling agent session to complete with timeout
-     * @param asyncSessionId The ID of the async agent session
-     * @param timeoutSeconds Maximum time to wait in seconds
-     * @return A map containing the session status and results
+     * @description Retrieves scheduled sessions for a specific event
+     * @param eventId The ID of the event to get sessions for
+     * @return List of scheduled session data
      */
-    @AuraEnabled
-    public static Map<String, Object> waitForAsyncSchedulingAgent(String asyncSessionId, Integer timeoutSeconds) {
+    @AuraEnabled(cacheable=false)
+    public static List<Map<String, Object>> getScheduledSessions(String eventId) {
         try {
-            System.debug('Waiting for async scheduling agent session completion: ' + asyncSessionId + ' with timeout: ' + timeoutSeconds + 's');
+            System.debug('Retrieving scheduled sessions for event: ' + eventId);
             
-            // Use the AsyncAgentController to wait for completion
-            Map<String, Object> waitResult = AsyncAgentController.waitForAsyncAgentSession(asyncSessionId, timeoutSeconds);
+            List<Map<String, Object>> scheduledSessions = new List<Map<String, Object>>();
             
-            if (waitResult.get('success') == true && waitResult.get('status') == 'Completed') {
-                // Parse the completed agent response
-                String agentResponse = (String) waitResult.get('agentResponse');
-                Map<String, Object> parsedResponse = parseAgentResponse(agentResponse, null);
+            // Query for session slots with related session and location information
+            List<Session_Slot__c> sessionSlots = [
+                SELECT Id, Session__c, Session_Location__c, Date__c, Start_Time__c, End_Time__c,
+                       Session__r.Name, Session__r.Session_Abstract__c, Session__r.Format__c, Session__r.Focus__c,
+                       Session_Location__r.Name, Session_Location__r.Room_Capacity__c, Session_Location__r.Room_Size__c
+                FROM Session_Slot__c 
+                WHERE Session__r.Event__c = :eventId
+                ORDER BY Date__c ASC, Start_Time__c ASC
+            ];
+            
+            System.debug('Found ' + sessionSlots.size() + ' scheduled sessions');
+            
+            for (Session_Slot__c slot : sessionSlots) {
+                Map<String, Object> sessionData = new Map<String, Object>();
                 
-                // Add the parsed response to the result
-                waitResult.put('parsedSchedule', parsedResponse);
-                waitResult.put('isChunked', false); // Async responses shouldn't be chunked
+                // Basic session information
+                sessionData.put('sessionName', slot.Session__r.Name);
+                sessionData.put('sessionAbstract', slot.Session__r.Session_Abstract__c);
+                sessionData.put('format', slot.Session__r.Format__c);
+                sessionData.put('focus', slot.Session__r.Focus__c);
+                
+                // Location information
+                sessionData.put('location', slot.Session_Location__r.Name);
+                sessionData.put('roomCapacity', slot.Session_Location__r.Room_Capacity__c);
+                sessionData.put('roomSize', slot.Session_Location__r.Room_Size__c);
+                
+                // Time information
+                if (slot.Date__c != null && slot.Start_Time__c != null && slot.End_Time__c != null) {
+                    DateTime startDateTime = DateTime.newInstance(slot.Date__c, slot.Start_Time__c);
+                    DateTime endDateTime = DateTime.newInstance(slot.Date__c, slot.End_Time__c);
+                    
+                    sessionData.put('startTime', startDateTime);
+                    sessionData.put('endTime', endDateTime);
+                    sessionData.put('date', slot.Date__c);
+                }
+                
+                // Add speaker information if available
+                List<Map<String, Object>> speakers = new List<Map<String, Object>>();
+                List<Session_Speaker__c> sessionSpeakers = [
+                    SELECT Speaker__r.FirstName, Speaker__r.LastName, Speaker__r.Email
+                    FROM Session_Speaker__c 
+                    WHERE Session__c = :slot.Session__c
+                ];
+                
+                for (Session_Speaker__c speaker : sessionSpeakers) {
+                    speakers.add(new Map<String, Object>{
+                        'firstName' => speaker.Speaker__r.FirstName,
+                        'lastName' => speaker.Speaker__r.LastName,
+                        'email' => speaker.Speaker__r.Email,
+                        'fullName' => speaker.Speaker__r.FirstName + ' ' + speaker.Speaker__r.LastName
+                    });
+                }
+                
+                sessionData.put('speakers', speakers);
+                
+                scheduledSessions.add(sessionData);
             }
             
-            return waitResult;
+            System.debug('Returning ' + scheduledSessions.size() + ' scheduled sessions');
+            return scheduledSessions;
             
         } catch (Exception e) {
-            System.debug('Error in waitForAsyncSchedulingAgent: ' + e.getMessage());
+            System.debug('Error retrieving scheduled sessions: ' + e.getMessage());
             System.debug('Stack trace: ' + e.getStackTraceString());
-            
-            return new Map<String, Object>{
-                'success' => false,
-                'message' => 'Error waiting for async scheduling agent: ' + e.getMessage(),
-                'error' => e.getMessage()
-            };
+            throw new AuraHandledException('Failed to retrieve scheduled sessions: ' + e.getMessage());
         }
     }
     
@@ -308,129 +368,47 @@ public with sharing class ScheduleAgentController {
         Map<String, Object> structuredResponse = new Map<String, Object>();
         
         try {
-            System.debug('Parsing agent response with AiAgentResponseParser: ' + agentResponse);
-            Map<String, Object> parsedSchedule;
+            System.debug('Parsing agent response: ' + agentResponse);
+            
+            // Check if this is a Salesforce AI agent response wrapper
+            if (agentResponse != null && agentResponse.contains('"type":"Text"') && agentResponse.contains('"value":')) {
+                System.debug('Detected Salesforce AI agent response wrapper, extracting value field');
+                
+                try {
+                    Map<String, Object> wrapper = (Map<String, Object>) JSON.deserializeUntyped(agentResponse);
+                    if (wrapper.containsKey('type') && wrapper.get('type') == 'Text' && wrapper.containsKey('value')) {
+                        String valueContent = String.valueOf(wrapper.get('value'));
+                        System.debug('Extracted value content: ' + valueContent);
+                        
+                        // Parse the nested JSON content
+                        Map<String, Object> nestedContent = (Map<String, Object>) JSON.deserializeUntyped(valueContent);
+                        System.debug('Parsed nested content: ' + JSON.serialize(nestedContent));
+                        
+                        // Now parse the actual agent response
+                        return parseAgentResponseContent(nestedContent, agentResponse);
+                    }
+                } catch (Exception e) {
+                    System.debug('Failed to parse wrapper: ' + e.getMessage());
+                }
+            }
+            
+            // Try to parse the response directly
             try {
-                parsedSchedule = AiAgentResponseParser.parseScheduleResponse(agentResponse);
-                System.debug('Parsed schedule: ' + JSON.serialize(parsedSchedule));
-                System.debug('Parsed schedule keys: ' + parsedSchedule.keySet());
-                System.debug('Parsed schedule contains error: ' + parsedSchedule.containsKey('error'));
-                if (parsedSchedule.containsKey('error')) {
-                    System.debug('Parsed schedule error: ' + parsedSchedule.get('error'));
-                }
+                Map<String, Object> parsedResponse = (Map<String, Object>) JSON.deserializeUntyped(agentResponse);
+                return parseAgentResponseContent(parsedResponse, agentResponse);
             } catch (Exception e) {
-                // Parsing failed, return error response
-                structuredResponse.put('success', false);
-                structuredResponse.put('message', 'Failed to parse agent response: ' + e.getMessage());
-                structuredResponse.put('agentName', 'Scheduling_Agent_1');
-                structuredResponse.put('processingTime', 'Real-time processing');
-                structuredResponse.put('timestamp', System.now().format());
-                structuredResponse.put('rawResponse', agentResponse);
-                structuredResponse.put('error', e.getMessage());
-                structuredResponse.put('recommendations', 'Agent response could not be parsed. Please check the raw response.');
-                
-                System.debug('Parsing failed: ' + e.getMessage());
-                return structuredResponse;
-            }
-
-            // Parsing succeeded, extract schedule fields
-            Map<String, Object> extractedFields = AiAgentResponseParser.extractScheduleFields(parsedSchedule);
-            
-            // Check if the parsing actually succeeded or if it returned an error
-            if (parsedSchedule.containsKey('error')) {
-                System.debug('Parsing returned error: ' + parsedSchedule.get('error'));
-                // The parsedSchedule itself contains an error, so we can't extract fields
-                String errorMessage = String.valueOf(parsedSchedule.get('error'));
-                String recommendation = 'Agent response could not be parsed. ';
-                
-                // Check if this is a truncation issue
-                if (errorMessage.contains('end-of-input') || errorMessage.contains('truncated')) {
-                    recommendation += 'The response appears to be truncated. This may be due to length limits. ';
-                    recommendation += 'Try requesting a smaller schedule or check the raw response for completeness.';
-                } else if (parsedSchedule.containsKey('recommendation')) {
-                    recommendation += String.valueOf(parsedSchedule.get('recommendation'));
-                } else {
-                    recommendation += 'Please check the raw response for formatting issues.';
-                }
-                
-                structuredResponse.put('success', false);
-                structuredResponse.put('message', 'Failed to parse agent response: ' + errorMessage);
-                structuredResponse.put('agentName', 'Scheduling_Agent_1');
-                structuredResponse.put('processingTime', 'Real-time processing');
-                structuredResponse.put('timestamp', System.now().format());
-                structuredResponse.put('rawResponse', agentResponse);
-                structuredResponse.put('error', errorMessage);
-                structuredResponse.put('recommendations', recommendation);
-                
-                // Add additional debugging information
-                if (parsedSchedule.containsKey('responseLength')) {
-                    structuredResponse.put('responseLength', parsedSchedule.get('responseLength'));
-                }
-                if (parsedSchedule.containsKey('exceptionType')) {
-                    structuredResponse.put('exceptionType', parsedSchedule.get('exceptionType'));
-                }
-                
-                System.debug('Failed to parse agent response: ' + errorMessage);
-                return structuredResponse;
+                System.debug('Failed to parse direct response: ' + e.getMessage());
             }
             
-            if (extractedFields.containsKey('error')) {
-                // Schedule structure is invalid
-                structuredResponse.put('success', false);
-                structuredResponse.put('message', 'Invalid schedule structure: ' + extractedFields.get('error'));
-                structuredResponse.put('agentName', 'Scheduling_Agent_1');
-                structuredResponse.put('processingTime', 'Real-time processing');
-                structuredResponse.put('timestamp', System.now().format());
-                structuredResponse.put('rawResponse', agentResponse);
-                structuredResponse.put('error', extractedFields.get('error'));
-                structuredResponse.put('recommendations', 'Schedule structure is invalid. Please check the raw response.');
-                
-                System.debug('Invalid schedule structure: ' + extractedFields.get('error'));
-                return structuredResponse;
-            }
-            
-            // Create a comprehensive structured response
-            structuredResponse.put('success', true);
-            structuredResponse.put('message', 'Schedule proposal generated successfully by Scheduling_Agent_1');
-            structuredResponse.put('agentName', 'Scheduling_Agent_1');
+            // If all parsing fails, return error response
+            structuredResponse.put('success', false);
+            structuredResponse.put('message', 'Failed to parse agent response');
+            structuredResponse.put('agentName', 'Scheduling_Agent_2');
             structuredResponse.put('processingTime', 'Real-time processing');
             structuredResponse.put('timestamp', System.now().format());
-            structuredResponse.put('optimizationScore', 'AI Optimized');
-            
-            // Add the parsed schedule data
-            structuredResponse.put('proposedSchedule', extractedFields.get('sessions'));
-            structuredResponse.put('totalSessions', extractedFields.get('sessionCount'));
-            structuredResponse.put('locations', extractedFields.get('locations'));
-            
-            // Check if this is a partial schedule
-            if (extractedFields.containsKey('isPartialSchedule') && (Boolean) extractedFields.get('isPartialSchedule')) {
-                structuredResponse.put('isPartialSchedule', true);
-                structuredResponse.put('warning', extractedFields.get('warning'));
-                structuredResponse.put('message', 'Partial schedule generated successfully by Scheduling_Agent_1 (response was truncated)');
-            } else {
-                structuredResponse.put('isPartialSchedule', false);
-            }
-            
-            // Create a summary for recommendations
-            Map<String, Object> summary = AiAgentResponseParser.createScheduleSummary(parsedSchedule);
-            if (summary.containsKey('sessionsByLocation')) {
-                structuredResponse.put('sessionsByLocation', summary.get('sessionsByLocation'));
-            }
-            
-            // Add recommendations based on the parsed data
-            String recommendations = 'Successfully parsed ' + extractedFields.get('sessionCount') + ' sessions across ' + 
-                                  ((List<String>) extractedFields.get('locations')).size() + ' locations. ';
-            
-            if (extractedFields.containsKey('isPartialSchedule') && (Boolean) extractedFields.get('isPartialSchedule')) {
-                recommendations += 'NOTE: This is a partial schedule due to response truncation. ';
-                recommendations += 'Consider requesting a smaller schedule for better completeness. ';
-            }
-            
-            recommendations += 'Schedule is optimized for minimal conflicts and optimal room utilization.';
-            structuredResponse.put('recommendations', recommendations);
-            
-            System.debug('Successfully parsed schedule with ' + extractedFields.get('sessionCount') + ' sessions');
-            System.debug('Structured response: ' + JSON.serialize(structuredResponse));
+            structuredResponse.put('rawResponse', agentResponse);
+            structuredResponse.put('error', 'Response format not recognized');
+            structuredResponse.put('recommendations', 'Agent response could not be parsed. Please check the raw response.');
             
         } catch (Exception e) {
             System.debug('Error parsing agent response: ' + e.getMessage());
@@ -439,12 +417,105 @@ public with sharing class ScheduleAgentController {
             // Return error response
             structuredResponse.put('success', false);
             structuredResponse.put('message', 'Failed to parse agent response');
-            structuredResponse.put('agentName', 'Scheduling_Agent_1');
+            structuredResponse.put('agentName', 'Scheduling_Agent_2');
             structuredResponse.put('processingTime', 'Real-time processing');
             structuredResponse.put('timestamp', System.now().format());
             structuredResponse.put('rawResponse', agentResponse);
             structuredResponse.put('error', e.getMessage());
             structuredResponse.put('recommendations', 'Agent response could not be parsed. Please check the raw response.');
+        }
+        
+        return structuredResponse;
+    }
+    
+    /**
+     * @description Parses the actual agent response content (after extracting from wrapper if needed)
+     * @param parsedContent The parsed JSON content from the agent
+     * @param rawResponse The raw response for reference
+     * @return A structured map containing the parsed response
+     */
+    private static Map<String, Object> parseAgentResponseContent(Map<String, Object> parsedContent, String rawResponse) {
+        Map<String, Object> structuredResponse = new Map<String, Object>();
+        
+        try {
+            System.debug('Parsing agent response content: ' + JSON.serialize(parsedContent));
+            System.debug('Content keys: ' + parsedContent.keySet());
+            
+            // Check if the response has the expected structure for the new format
+            if (parsedContent.containsKey('success') && parsedContent.containsKey('message') && parsedContent.containsKey('slotsUpserted')) {
+                System.debug('Found new agent response format with success/message/slotsUpserted');
+                
+                // Extract the response data
+                Boolean success = (Boolean) parsedContent.get('success');
+                String message = (String) parsedContent.get('message');
+                Integer slotsUpserted = (Integer) parsedContent.get('slotsUpserted');
+                
+                // Create the structured response
+                structuredResponse.put('success', success);
+                structuredResponse.put('message', message);
+                structuredResponse.put('agentName', 'Scheduling_Agent_2');
+                structuredResponse.put('processingTime', 'Real-time processing');
+                structuredResponse.put('timestamp', System.now().format());
+                structuredResponse.put('slotsUpserted', slotsUpserted);
+                structuredResponse.put('rawResponse', rawResponse);
+                
+                if (success) {
+                    structuredResponse.put('recommendations', 'Scheduling completed successfully. ' + slotsUpserted + ' session slots were created/updated.');
+                    structuredResponse.put('scheduleGenerated', true);
+                    structuredResponse.put('totalSessions', slotsUpserted);
+                } else {
+                    structuredResponse.put('error', message);
+                    structuredResponse.put('recommendations', 'Scheduling failed. Please check the error message and try again.');
+                    structuredResponse.put('scheduleGenerated', false);
+                }
+                
+                System.debug('Successfully parsed new format response: ' + JSON.serialize(structuredResponse));
+                return structuredResponse;
+            }
+            
+            // Check if this is the old format with proposedSchedule
+            if (parsedContent.containsKey('proposedSchedule')) {
+                System.debug('Found old format response with proposedSchedule');
+                
+                List<Object> proposedSchedule = (List<Object>) parsedContent.get('proposedSchedule');
+                Integer totalSessions = proposedSchedule != null ? proposedSchedule.size() : 0;
+                
+                structuredResponse.put('success', true);
+                structuredResponse.put('message', 'Schedule generated successfully (legacy format)');
+                structuredResponse.put('agentName', 'Scheduling_Agent_2');
+                structuredResponse.put('processingTime', 'Real-time processing');
+                structuredResponse.put('timestamp', System.now().format());
+                structuredResponse.put('proposedSchedule', proposedSchedule);
+                structuredResponse.put('totalSessions', totalSessions);
+                structuredResponse.put('rawResponse', rawResponse);
+                structuredResponse.put('recommendations', 'Schedule generated successfully with ' + totalSessions + ' sessions.');
+                structuredResponse.put('scheduleGenerated', true);
+                
+                return structuredResponse;
+            }
+            
+            // If we get here, the response format is not recognized
+            System.debug('Response format not recognized');
+            structuredResponse.put('success', false);
+            structuredResponse.put('message', 'Invalid response structure');
+            structuredResponse.put('agentName', 'Scheduling_Agent_2');
+            structuredResponse.put('processingTime', 'Real-time processing');
+            structuredResponse.put('timestamp', System.now().format());
+            structuredResponse.put('rawResponse', rawResponse);
+            structuredResponse.put('error', 'Response format not recognized');
+            structuredResponse.put('recommendations', 'Agent response format is not recognized. Please check the raw response.');
+            
+        } catch (Exception e) {
+            System.debug('Error parsing agent response content: ' + e.getMessage());
+            
+            structuredResponse.put('success', false);
+            structuredResponse.put('message', 'Failed to parse agent response content');
+            structuredResponse.put('agentName', 'Scheduling_Agent_2');
+            structuredResponse.put('processingTime', 'Real-time processing');
+            structuredResponse.put('timestamp', System.now().format());
+            structuredResponse.put('rawResponse', rawResponse);
+            structuredResponse.put('error', e.getMessage());
+            structuredResponse.put('recommendations', 'Agent response content could not be parsed. Please check the raw response.');
         }
         
         return structuredResponse;

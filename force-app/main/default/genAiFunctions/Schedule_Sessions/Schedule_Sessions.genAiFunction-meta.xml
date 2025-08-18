@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GenAiFunction xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Accepts JSON string of SessionSlot wrapper objects and upserts them as Session_Slot__c records</description>
+    <invocationTarget>SessionScheduler</invocationTarget>
+    <invocationTargetType>apex</invocationTargetType>
+    <isConfirmationRequired>false</isConfirmationRequired>
+    <isIncludeInProgressIndicator>true</isIncludeInProgressIndicator>
+    <masterLabel>Schedule Sessions</masterLabel>
+    <progressIndicatorMessage>Saving Session Scheduling</progressIndicatorMessage>
+</GenAiFunction>

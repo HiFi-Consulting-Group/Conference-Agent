@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GenAiFunction xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Loads session location availability by analyzing existing session slots and calculating available time periods</description>
+    <invocationTarget>LocationLoader</invocationTarget>
+    <invocationTargetType>apex</invocationTargetType>
+    <isConfirmationRequired>false</isConfirmationRequired>
+    <isIncludeInProgressIndicator>true</isIncludeInProgressIndicator>
+    <masterLabel>Load Location Availability</masterLabel>
+    <progressIndicatorMessage>Loading Location Availability</progressIndicatorMessage>
+</GenAiFunction>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GenAiFunction xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Loads an Event record by ID and returns it as a JSON string</description>
+    <invocationTarget>EventLoader</invocationTarget>
+    <invocationTargetType>apex</invocationTargetType>
+    <isConfirmationRequired>false</isConfirmationRequired>
+    <isIncludeInProgressIndicator>true</isIncludeInProgressIndicator>
+    <masterLabel>Load Event by ID</masterLabel>
+    <progressIndicatorMessage>Loading event...</progressIndicatorMessage>
+</GenAiFunction>

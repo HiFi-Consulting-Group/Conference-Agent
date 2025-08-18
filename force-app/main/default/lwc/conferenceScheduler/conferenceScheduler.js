@@ -3,7 +3,7 @@ import getEvents from '@salesforce/apex/ScheduleAgentController.getEvents';
 import invokeSchedulingAgent from '@salesforce/apex/ScheduleAgentController.invokeSchedulingAgent';
 import invokeSchedulingAgentAsync from '@salesforce/apex/ScheduleAgentController.invokeSchedulingAgentAsync';
 import getAsyncSchedulingAgentStatus from '@salesforce/apex/ScheduleAgentController.getAsyncSchedulingAgentStatus';
-import waitForAsyncSchedulingAgent from '@salesforce/apex/ScheduleAgentController.waitForAsyncSchedulingAgent';
+import getScheduledSessions from '@salesforce/apex/ScheduleAgentController.getScheduledSessions';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 
 export default class ConferenceScheduler extends LightningElement {
@@ -17,7 +17,6 @@ export default class ConferenceScheduler extends LightningElement {
     @track proposedSchedule = null;
     @track showResults = false;
     @track scheduleOptions = [
-        { label: 'Create New Conference Schedule', value: 'new' },
         { label: 'Create New Conference Schedule (Async)', value: 'new-async' },
         { label: 'Modify Existing Conference Schedule', value: 'modify' }
     ];
@@ -29,6 +28,8 @@ export default class ConferenceScheduler extends LightningElement {
     @track asyncProgress = 0;
     @track asyncTimeout = 300; // 5 minutes default timeout
     @track showAsyncProgress = false;
+    @track isWaitingForParts = false;
+    @track partialResponses = null;
 
     // Table configuration
     scheduleTableColumns = [
@@ -124,7 +125,8 @@ export default class ConferenceScheduler extends LightningElement {
 
     handleOptionChange(event) {
         this.selectedOption = event.detail.value;
-        if (this.selectedOption === 'new' || this.selectedOption === 'new-async') {
+        this.selectedEventId = this.selectedOption.Id;
+        if (this.selectedOption === 'new-async') {
             this.loadEvents();
         } else {
             this.selectedEventId = '';
@@ -172,8 +174,9 @@ export default class ConferenceScheduler extends LightningElement {
         this.errorMessage = '';
         
         try {
-            // Simple message for the agent
-            const userMessage = 'Generate a proposed schedule for the conference with available rooms and time slots.';
+            // Enhanced message for the
+            // agent with specific JSON structure
+            const userMessage = 'Generate a proposed schedule for '+this.selectedEventId+' based on available rooms and time slots. Save the proposed schedule as Session Slots marked draft. Before selecting times and locations, check the availability of the rooms and time slots. Never schedule a session in a room with a time that overlaps with another session.';
             
             console.log('Calling schedule agent with message:', userMessage);
             
@@ -204,8 +207,8 @@ export default class ConferenceScheduler extends LightningElement {
         this.asyncProgress = 0;
         
         try {
-            // Simple message for the agent
-            const userMessage = 'Generate a proposed schedule for the conference with available rooms and time slots.';
+            // Enhanced message for the agent with specific JSON structure
+            const userMessage = 'Generate a proposed schedule for '+this.selectedEventId+' based on available rooms and time slots. Save the proposed schedule as Session Slots marked draft. Before selecting times and locations, check the availability of the rooms and time slots. Never schedule a session in a room with a time that overlaps with another session.';
             
             console.log('Calling async schedule agent with message:', userMessage);
             
@@ -275,6 +278,8 @@ export default class ConferenceScheduler extends LightningElement {
     pollAsyncSessionStatus() {
         if (!this.asyncSessionId) return;
         
+        console.log('Starting async session polling for session:', this.asyncSessionId);
+        
         const pollInterval = setInterval(() => {
             if (!this.asyncSessionId) {
                 clearInterval(pollInterval);
@@ -284,23 +289,68 @@ export default class ConferenceScheduler extends LightningElement {
             // Check the status of the async session
             getAsyncSchedulingAgentStatus({ asyncSessionId: this.asyncSessionId })
                 .then(statusResponse => {
-                    console.log('Async session status:', statusResponse);
+                    console.log('Async session status update:', statusResponse);
                     this.asyncStatus = statusResponse.status;
                     
-                    if (statusResponse.status === 'Completed') {
+                    // Update progress based on status
+                    if (statusResponse.status === 'Pending') {
+                        this.asyncProgress = 10;
+                    } else if (statusResponse.status === 'Processing') {
+                        this.asyncProgress = Math.min(this.asyncProgress + 15, 85);
+                    } else if (statusResponse.status === 'Completed') {
+                        this.asyncProgress = 100;
                         clearInterval(pollInterval);
                         this.handleAsyncAgentCompletion(statusResponse);
                     } else if (statusResponse.status === 'Failed') {
+                        this.asyncProgress = 100;
                         clearInterval(pollInterval);
                         this.handleAsyncAgentFailure(statusResponse);
                     }
-                    // Continue polling for other statuses (Pending, Processing)
+                    
+                    // Show status-specific messages
+                    this.updateAsyncStatusMessage(statusResponse.status);
+                    
                 })
                 .catch(error => {
                     console.error('Error polling async session status:', error);
+                    // Continue polling on error, but show error in UI
+                    this.errorMessage = 'Error checking status: ' + (error.body?.message || error.message || 'Unknown error');
                     // Continue polling on error
                 });
-        }, 2000); // Poll every 2 seconds
+        }, 15000); // Poll every 15 seconds for better performance
+        
+        // Store the interval ID so we can clear it if needed
+        this.pollIntervalId = pollInterval;
+    }
+    
+    updateAsyncStatusMessage(status) {
+        let message = '';
+        switch (status) {
+            case 'Pending':
+                message = 'Your request is queued and waiting to be processed...';
+                break;
+            case 'Processing':
+                message = 'The scheduling agent is actively working on your request. This may take several minutes for complex schedules.';
+                break;
+            case 'Completed':
+                message = 'Schedule generation completed successfully!';
+                break;
+            case 'Failed':
+                message = 'Schedule generation failed. Please check the error details below.';
+                break;
+            default:
+                message = 'Processing your schedule request...';
+        }
+        
+        // Update the status message in the UI
+        this.dispatchEvent(
+            new ShowToastEvent({
+                title: 'Status Update',
+                message: message,
+                variant: status === 'Failed' ? 'error' : 'info',
+                duration: status === 'Completed' || status === 'Failed' ? 5000 : 3000
+            })
+        );
     }
     
     simulateAsyncProgress() {
@@ -312,11 +362,15 @@ export default class ConferenceScheduler extends LightningElement {
                 return;
             }
             
-            // Simulate progress (this is just visual - real progress comes from status updates)
-            if (this.asyncProgress < 90) {
-                this.asyncProgress += Math.random() * 10;
+            // Only simulate progress when status is Processing and we're not near completion
+            if (this.asyncStatus === 'Processing' && this.asyncProgress < 85) {
+                // Gradual progress increase to show activity
+                this.asyncProgress += Math.random() * 5;
             }
-        }, 1000); // Update progress every second
+        }, 2000); // Update progress every 2 seconds to avoid too frequent updates
+        
+        // Store the interval ID so we can clear it if needed
+        this.progressIntervalId = progressInterval;
     }
     
     handleAsyncAgentCompletion(statusResponse) {
@@ -326,33 +380,97 @@ export default class ConferenceScheduler extends LightningElement {
         this.asyncProgress = 100;
         
         console.log('Async agent session completed successfully');
+        console.log('=== handleAsyncAgentCompletion debugging ===');
+        console.log('statusResponse keys:', Object.keys(statusResponse));
+        console.log('statusResponse.parsedSchedule:', statusResponse.parsedSchedule);
         
-        // Parse the agent response similar to synchronous mode
-        if (statusResponse.parsedSchedule) {
-            this.handleAgentResponse({
-                success: true,
-                isChunked: false,
-                agentResponse: statusResponse.agentResponse,
-                message: 'Schedule generated successfully (async)'
-            });
+        // Check if the backend successfully parsed the agent response
+        if (statusResponse.parsedSchedule && statusResponse.parsedSchedule.success) {
+            console.log('Backend successfully parsed agent response');
+            
+            const parsedSchedule = statusResponse.parsedSchedule;
+            const slotsUpserted = parsedSchedule.slotsUpserted || 0;
+            const message = parsedSchedule.message || 'Schedule generated successfully';
+            
+            if (parsedSchedule.scheduleGenerated) {
+                // Agent successfully created draft slots
+                console.log('Agent successfully created draft slots:', slotsUpserted);
+                
+                // Show success message
+                this.dispatchEvent(
+                    new ShowToastEvent({
+                        title: 'Schedule Generated Successfully',
+                        message: `Successfully created ${slotsUpserted} draft session slots. The schedule is now available in the database.`,
+                        variant: 'success'
+                    })
+                );
+                
+                // Update the proposedSchedule to indicate success
+                this.proposedSchedule = {
+                    success: true,
+                    schedule: [], // We'll query the database for actual slots
+                    totalSessions: slotsUpserted,
+                    locations: [],
+                    timeRange: { start: null, end: null },
+                    message: message,
+                    error: null,
+                    note: `Agent created ${slotsUpserted} draft session slots. Query the database to see the actual schedule.`
+                };
+                
+                this.showResults = true;
+                
+                // Query the database for the actual scheduled sessions
+                this.queryScheduledSessions();
+                
+            } else {
+                // Agent failed to create slots
+                console.error('Agent failed to create draft slots');
+                
+                this.errorMessage = message || 'Agent failed to create draft slots';
+                
+                // Show error message
+                this.dispatchEvent(
+                    new ShowToastEvent({
+                        title: 'Schedule Generation Failed',
+                        message: message || 'Failed to generate schedule. Please check the error details.',
+                        variant: 'error'
+                    })
+                );
+            }
+            
+        } else if (statusResponse.parsedSchedule && !statusResponse.parsedSchedule.success) {
+            // Backend parsing succeeded but agent reported failure
+            console.error('Agent reported failure:', statusResponse.parsedSchedule.error);
+            
+            this.errorMessage = statusResponse.parsedSchedule.error || 'Agent reported failure';
+            
+            // Show error message
+            this.dispatchEvent(
+                new ShowToastEvent({
+                    title: 'Schedule Generation Failed',
+                    message: statusResponse.parsedSchedule.error || 'Failed to generate schedule. Please check the error details.',
+                    variant: 'error'
+                })
+            );
+            
         } else {
-            // Fallback to parsing the raw response
-            this.handleAgentResponse({
-                success: true,
-                isChunked: false,
-                agentResponse: statusResponse.agentResponse,
-                message: 'Schedule generated successfully (async)'
-            });
+            // Backend parsing failed or no parsedSchedule available
+            console.error('Backend parsing failed or no parsedSchedule available');
+            
+            this.errorMessage = 'Failed to parse agent response';
+            
+            // Show error message
+            this.dispatchEvent(
+                new ShowToastEvent({
+                    title: 'Schedule Generation Failed',
+                    message: 'Failed to parse agent response. Please check the error details.',
+                    variant: 'error'
+                })
+            );
         }
         
-        // Show success message
-        this.dispatchEvent(
-            new ShowToastEvent({
-                title: 'Schedule Generated',
-                message: 'Your conference schedule has been generated successfully using asynchronous processing.',
-                variant: 'success'
-            })
-            );
+        // Clean up intervals
+        this.cleanupAsyncIntervals();
     }
     
     handleAsyncAgentFailure(statusResponse) {
@@ -362,16 +480,39 @@ export default class ConferenceScheduler extends LightningElement {
         
         console.error('Async agent session failed:', statusResponse);
         
-        this.errorMessage = statusResponse.errorMessage || 'Async agent session failed';
+        // Extract error information
+        let errorMessage = 'Async agent session failed';
+        let detailedError = '';
+        
+        if (statusResponse.errorMessage) {
+            errorMessage = statusResponse.errorMessage;
+            detailedError = statusResponse.errorMessage;
+        } else if (statusResponse.error) {
+            errorMessage = statusResponse.error;
+            detailedError = statusResponse.error;
+        }
+        
+        // Check if this is a resource limit error
+        if (detailedError.toLowerCase().includes('heap') || detailedError.toLowerCase().includes('cpu')) {
+            errorMessage = 'Schedule generation failed due to resource limits. The response may be too large for processing.';
+            detailedError += ' Consider requesting a smaller schedule or breaking it into multiple requests.';
+        } else if (detailedError.toLowerCase().includes('callout')) {
+            errorMessage = 'Schedule generation failed due to external service issues. Please try again later.';
+        }
+        
+        this.errorMessage = detailedError || errorMessage;
         
         // Show error message
         this.dispatchEvent(
             new ShowToastEvent({
                 title: 'Async Session Failed',
-                message: 'The asynchronous schedule generation failed. Please try again or use the synchronous mode.',
+                message: errorMessage,
                 variant: 'error'
             })
         );
+        
+        // Clean up intervals
+        this.cleanupAsyncIntervals();
     }
     
     handleAgentResponse(response) {
@@ -398,6 +539,13 @@ export default class ConferenceScheduler extends LightningElement {
                 
                 console.log('Reconstructed full response from', response.totalChunks, 'chunks');
                 console.log('Full response length:', fullResponse.length);
+            }
+            
+            // Check if the response contains multiple parts that need to be combined
+            const combinedResponse = this.combineMultipleResponses(response.agentResponse);
+            if (combinedResponse !== response.agentResponse) {
+                console.log('Response was combined from multiple parts');
+                response.agentResponse = combinedResponse;
             }
             
             console.log('Agent response:', response.agentResponse);
@@ -470,7 +618,762 @@ export default class ConferenceScheduler extends LightningElement {
         // Sort chunks if they have order information, otherwise concatenate in order
         return chunks.join('');
     }
+    
+    /**
+     * Combines multiple sequential responses from the AI agent
+     * @param {string} agentResponse - The raw response from the agent
+     * @returns {string} - The combined response
+     */
+    combineMultipleResponses(agentResponse) {
+        if (!agentResponse) {
+            return '';
+        }
+        
+        console.log('=== combineMultipleResponses called ===');
+        console.log('Original response length:', agentResponse.length);
+        console.log('Original response preview:', agentResponse.substring(0, 500));
+        
+        // Clean the response first - remove leading/trailing invalid characters
+        let cleanedResponse = agentResponse.trim();
+        
+        // Remove leading characters that aren't valid JSON starters
+        while (cleanedResponse.length > 0 && 
+               !cleanedResponse.startsWith('{') && 
+               !cleanedResponse.startsWith('[') && 
+               !cleanedResponse.startsWith('"')) {
+            cleanedResponse = cleanedResponse.substring(1);
+        }
+        
+        // Remove trailing characters that aren't valid JSON enders
+        while (cleanedResponse.length > 0 && 
+               !cleanedResponse.endsWith('}') && 
+               !cleanedResponse.endsWith(']') && 
+               !cleanedResponse.endsWith('"')) {
+            cleanedResponse = cleanedResponse.substring(0, cleanedResponse.length - 1);
+        }
+        
+        if (cleanedResponse !== agentResponse) {
+            console.log('Cleaned response from', agentResponse.length, 'to', cleanedResponse.length, 'characters');
+            console.log('Cleaned response preview:', cleanedResponse.substring(0, 200));
+        }
+        
+        // Check if the response contains multiple JSON objects or arrays
+        // Look for patterns that indicate multiple responses
+        
+        // Pattern 1: Multiple complete JSON objects separated by whitespace/newlines
+        const jsonObjects = this.extractMultipleJsonObjects(cleanedResponse);
+        if (jsonObjects.length > 1) {
+            console.log('Found multiple JSON objects:', jsonObjects.length);
+            return this.combineJsonObjects(jsonObjects);
+        }
+        
+        // Pattern 2: Multiple JSON arrays that need to be merged
+        const jsonArrays = this.extractMultipleJsonArrays(cleanedResponse);
+        if (jsonArrays.length > 1) {
+            console.log('Found multiple JSON arrays:', jsonArrays.length);
+            return this.combineJsonArrays(jsonArrays);
+        }
+        
+        // Pattern 3: Check for explicit part indicators in the response
+        if (cleanedResponse.includes('Part 1') || cleanedResponse.includes('Part 2') || 
+            cleanedResponse.includes('Response 1') || cleanedResponse.includes('Response 2')) {
+            console.log('Found explicit part indicators in response');
+            return this.combinePartedResponses(cleanedResponse);
+        }
+        
+        // Pattern 4: Check if this is a Salesforce AI agent response wrapper
+        if (cleanedResponse.includes('"type":"Text"') && cleanedResponse.includes('"value":')) {
+            console.log('Found Salesforce AI agent response wrapper, extracting JSON content');
+            return this.combinePartedResponses(cleanedResponse);
+        }
+        
+        // If no multiple response patterns found, return the cleaned response
+        console.log('No multiple response patterns found, returning cleaned response');
+        return cleanedResponse;
+    }
+    
+    /**
+     * Extracts multiple JSON objects from a response string
+     * @param {string} response - The response string
+     * @returns {Array} - Array of JSON object strings
+     */
+    extractMultipleJsonObjects(response) {
+        const objects = [];
+        let braceCount = 0;
+        let startIndex = -1;
+        let inString = false;
+        let escapeNext = false;
+        
+        for (let i = 0; i < response.length; i++) {
+            const char = response[i];
+            
+            if (escapeNext) {
+                escapeNext = false;
+                continue;
+            }
+            
+            if (char === '\\') {
+                escapeNext = true;
+                continue;
+            }
+            
+            if (char === '"' && !escapeNext) {
+                inString = !inString;
+            }
+            
+            if (!inString) {
+                if (char === '{') {
+                    if (braceCount === 0) {
+                        startIndex = i;
+                    }
+                    braceCount++;
+                } else if (char === '}') {
+                    braceCount--;
+                    if (braceCount === 0 && startIndex !== -1) {
+                        const jsonObject = response.substring(startIndex, i + 1);
+                        try {
+                            // Validate that this is valid JSON
+                            JSON.parse(jsonObject);
+                            objects.push(jsonObject);
+                        } catch (e) {
+                            console.log('Invalid JSON object found, skipping:', jsonObject.substring(0, 100));
+                        }
+                        startIndex = -1;
+                    }
+                }
+            }
+        }
+        
+        return objects;
+    }
+    
+    /**
+     * Extracts multiple JSON arrays from a response string
+     * @param {string} response - The response string
+     * @returns {Array} - Array of JSON array strings
+     */
+    extractMultipleJsonArrays(response) {
+        const arrays = [];
+        let bracketCount = 0;
+        let startIndex = -1;
+        let inString = false;
+        let escapeNext = false;
+        
+        for (let i = 0; i < response.length; i++) {
+            const char = response[i];
+            
+            if (escapeNext) {
+                escapeNext = false;
+                continue;
+            }
+            
+            if (char === '\\') {
+                escapeNext = true;
+                continue;
+            }
+            
+            if (char === '"' && !escapeNext) {
+                inString = !inString;
+            }
+            
+            if (!inString) {
+                if (char === '[') {
+                    if (bracketCount === 0) {
+                        startIndex = i;
+                    }
+                    bracketCount++;
+                } else if (char === ']') {
+                    bracketCount--;
+                    if (bracketCount === 0 && startIndex !== -1) {
+                        const jsonArray = response.substring(startIndex, i + 1);
+                        try {
+                            // Validate that this is valid JSON
+                            JSON.parse(jsonArray);
+                            arrays.push(jsonArray);
+                        } catch (e) {
+                            console.log('Invalid JSON array found, skipping:', jsonArray.substring(0, 100));
+                        }
+                        startIndex = -1;
+                    }
+                }
+            }
+        }
+        
+        return arrays;
+    }
+    
+    /**
+     * Combines multiple JSON objects into a single response
+     * @param {Array} jsonObjects - Array of JSON object strings
+     * @returns {string} - Combined JSON response
+     */
+    combineJsonObjects(jsonObjects) {
+        try {
+            // Parse all objects and look for schedule-related data
+            const schedules = [];
+            const otherData = [];
+            
+            jsonObjects.forEach((objStr, index) => {
+                try {
+                    const obj = JSON.parse(objStr);
+                    console.log(`Parsed object ${index}:`, Object.keys(obj));
+                    
+                    // Check if this object contains schedule data
+                    if (obj.schedule || obj.sessions || obj.proposedSchedule) {
+                        schedules.push(obj);
+                    } else {
+                        otherData.push(obj);
+                    }
+                } catch (e) {
+                    console.log(`Failed to parse object ${index}:`, e.message);
+                }
+            });
+            
+            if (schedules.length > 0) {
+                // Combine all schedule data
+                const combinedSchedule = this.mergeScheduleData(schedules);
+                console.log('Combined schedule data:', combinedSchedule);
+                return JSON.stringify(combinedSchedule);
+            } else {
+                // If no schedule data found, return the first valid object
+                console.log('No schedule data found, returning first valid object');
+                return jsonObjects[0];
+            }
+        } catch (e) {
+            console.log('Failed to combine JSON objects:', e.message);
+            return jsonObjects[0] || '';
+        }
+    }
+    
+    /**
+     * Combines multiple JSON arrays into a single response
+     * @param {Array} jsonArrays - Array of JSON array strings
+     * @returns {string} - Combined JSON response
+     */
+    combineJsonArrays(jsonArrays) {
+        try {
+            // Parse all arrays and combine them
+            const allItems = [];
+            
+            jsonArrays.forEach((arrayStr, index) => {
+                try {
+                    const array = JSON.parse(arrayStr);
+                    console.log(`Parsed array ${index} with ${array.length} items`);
+                    allItems.push(...array);
+                } catch (e) {
+                    console.log(`Failed to parse array ${index}:`, e.message);
+                }
+            });
+            
+            console.log(`Combined ${allItems.length} total items from ${jsonArrays.length} arrays`);
+            return JSON.stringify(allItems);
+        } catch (e) {
+            console.log('Failed to combine JSON arrays:', e.message);
+            return jsonArrays[0] || '';
+        }
+    }
+    
+    /**
+     * Combines responses that have explicit part indicators
+     * @param {string} response - The response string
+     * @returns {string} - Combined response
+     */
+    combinePartedResponses(response) {
+        try {
+            // First, try to extract the JSON content from the response
+            // This handles cases where the response has text wrapper around JSON
+            const jsonMatch = response.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                console.log('Extracted JSON content from response with text wrapper');
+                let jsonContent = jsonMatch[0];
+                
+                // Fix escaped newlines and other escaped characters
+                jsonContent = jsonContent.replace(/\\n/g, '\n');
+                jsonContent = jsonContent.replace(/\\t/g, '\t');
+                jsonContent = jsonContent.replace(/\\r/g, '\r');
+                jsonContent = jsonContent.replace(/\\"/g, '"');
+                jsonContent = jsonContent.replace(/\\\\/g, '\\');
+                
+                console.log('Fixed escaped characters in JSON content');
+                return jsonContent;
+            }
+            
+            // If no JSON found, then try to handle explicit part indicators
+            const parts = [];
+            
+            // Split by common part indicators
+            const partRegex = /(?:Part\s*\d+|Response\s*\d+)[:\s]*([\s\S]*?)(?=Part\s*\d+|Response\s*\d+|$)/gi;
+            let match;
+            
+            while ((match = partRegex.exec(response)) !== null) {
+                const partContent = match[1].trim();
+                if (partContent) {
+                    parts.push(partContent);
+                }
+            }
+            
+            if (parts.length > 1) {
+                console.log(`Found ${parts.length} parts with explicit indicators`);
+                // Try to combine the parts as JSON
+                return this.combineJsonParts(parts);
+            }
+            
+            return response;
+        } catch (e) {
+            console.log('Failed to combine parted responses:', e.message);
+            return response;
+        }
+    }
+    
+    /**
+     * Combines multiple JSON parts into a single response
+     * @param {Array} parts - Array of JSON part strings
+     * @returns {string} - Combined JSON response
+     */
+    combineJsonParts(parts) {
+        try {
+            const allItems = [];
+            
+            parts.forEach((part, index) => {
+                try {
+                    // Try to parse as JSON array
+                    const parsed = JSON.parse(part);
+                    if (Array.isArray(parsed)) {
+                        allItems.push(...parsed);
+                    } else if (parsed.schedule || parsed.sessions) {
+                        // If it's an object with schedule data, extract the schedule
+                        const scheduleData = parsed.schedule || parsed.sessions;
+                        if (Array.isArray(scheduleData)) {
+                            allItems.push(...scheduleData);
+                        }
+                    }
+                } catch (e) {
+                    console.log(`Failed to parse part ${index}:`, e.message);
+                }
+            });
+            
+            if (allItems.length > 0) {
+                console.log(`Combined ${allItems.length} items from ${parts.length} parts`);
+                return JSON.stringify(allItems);
+            }
+            
+            return parts[0] || '';
+        } catch (e) {
+            console.log('Failed to combine JSON parts:', e.message);
+            return parts[0] || '';
+        }
+    }
+    
+    /**
+     * Checks if a response indicates that more parts are coming
+     * @param {string} response - The agent response
+     * @returns {boolean} - True if more parts are expected
+     */
+    responseIndicatesMoreParts(response) {
+        if (!response) return false;
+        
+        console.log('=== responseIndicatesMoreParts called ===');
+        console.log('Response length:', response?.length || 0);
+        console.log('Response preview:', response?.substring(0, 200));
+        console.log('Response end:', response?.substring(Math.max(0, (response?.length || 0) - 200)));
+        
+        // Check if the response contains explicit part indicators
+        const indicators = [
+            'Part 1',
+            'Part 2 will follow',
+            'more parts',
+            'will follow',
+            'continues in',
+            'next part',
+            'additional parts'
+        ];
+        
+        const hasIndicator = indicators.some(indicator => 
+            response.toLowerCase().includes(indicator.toLowerCase())
+        );
+        
+        if (hasIndicator) {
+            console.log('Response contains direct part indicator:', indicators.find(indicator => 
+                response.toLowerCase().includes(indicator.toLowerCase())
+            ));
+            return true;
+        }
+        
+        // Check if this is a Salesforce AI agent response wrapper
+        if (response.includes('"type":"Text"') && response.includes('"value":')) {
+            console.log('Response is a Salesforce AI agent wrapper, checking content for part indicators');
+            
+            // Extract the actual content from the wrapper to check for part indicators
+            try {
+                const wrapper = JSON.parse(response);
+                if (wrapper.type === 'Text' && wrapper.value) {
+                    const content = wrapper.value;
+                    console.log('Extracted content length:', content.length);
+                    console.log('Extracted content preview:', content.substring(0, 200));
+                    console.log('Extracted content end:', content.substring(Math.max(0, content.length - 200)));
+                    
+                    const contentHasIndicator = indicators.some(indicator => 
+                        content.toLowerCase().includes(indicator.toLowerCase())
+                    );
+                    
+                    if (contentHasIndicator) {
+                        const foundIndicator = indicators.find(indicator => 
+                            content.toLowerCase().includes(indicator.toLowerCase())
+                        );
+                        console.log('Content inside wrapper indicates more parts are coming:', foundIndicator);
+                        return true;
+                    }
+                }
+            } catch (e) {
+                console.log('Failed to parse wrapper to check content for part indicators:', e.message);
+            }
+        }
+        
+        console.log('Response does not indicate more parts are coming');
+        return false;
+    }
+    
+    /**
+     * Waits for all parts of a multi-part response to complete
+     * @param {string} firstPartResponse - The first part response
+     */
+    waitForAllParts(firstPartResponse) {
+        console.log('=== waitForAllParts called ===');
+        console.log('First part response length:', firstPartResponse?.length || 0);
+        console.log('First part preview:', firstPartResponse?.substring(0, 200));
+        console.log('First part end:', firstPartResponse?.substring(Math.max(0, (firstPartResponse?.length || 0) - 200)));
+        
+        // Store the first part
+        this.partialResponses = [firstPartResponse];
+        this.isWaitingForParts = true;
+        this.showAsyncProgress = true;
+        this.asyncProgress = 50; // Show progress while waiting
+        
+        // Continue polling for more parts
+        this.continuePollingForParts();
+        
+        // Show message to user
+        this.dispatchEvent(
+            new ShowToastEvent({
+                title: 'Processing Multi-Part Response',
+                message: 'The AI agent is sending the schedule in multiple parts. Please wait while we collect all parts...',
+                variant: 'info'
+            })
+        );
+    }
+    
+    /**
+     * Continues polling for additional parts of the response
+     */
+    continuePollingForParts() {
+        if (!this.asyncSessionId || !this.isWaitingForParts) return;
+        
+        console.log('=== continuePollingForParts started ===');
+        console.log('Waiting for additional parts from async session:', this.asyncSessionId);
+        
+        const partPollInterval = setInterval(() => {
+            if (!this.asyncSessionId || !this.isWaitingForParts) {
+                clearInterval(partPollInterval);
+                return;
+            }
+            
+            // Check if the async session has been updated with more content
+            getAsyncSchedulingAgentStatus({ asyncSessionId: this.asyncSessionId })
+                .then(statusResponse => {
+                    console.log('Checking for additional parts:', statusResponse.status);
+                    console.log('Current response length:', statusResponse.agentResponse?.length || 0);
+                    console.log('First part length:', this.partialResponses[0]?.length || 0);
+                    
+                    if (statusResponse.status === 'Completed') {
+                        // Check if this response has more content than the first part
+                        if (statusResponse.agentResponse && 
+                            statusResponse.agentResponse.length > this.partialResponses[0].length) {
+                            
+                            console.log('Found additional content, length increased from', 
+                                this.partialResponses[0].length, 'to', statusResponse.agentResponse.length);
+                            
+                            // Add this response to our collection
+                            this.partialResponses.push(statusResponse.agentResponse);
+                            
+                            // Check if we have all parts now
+                            if (this.hasAllParts(statusResponse.agentResponse)) {
+                                console.log('All parts received, processing complete response');
+                                clearInterval(partPollInterval);
+                                this.processCompleteMultiPartResponse();
+                            }
+                        } else {
+                            console.log('No additional content found, response length:', statusResponse.agentResponse?.length || 0);
+                            
+                            // If the response length hasn't increased but we're still waiting,
+                            // check if the content indicates completion
+                            if (statusResponse.agentResponse && this.hasAllParts(statusResponse.agentResponse)) {
+                                console.log('Response indicates completion, processing complete response');
+                                clearInterval(partPollInterval);
+                                this.processCompleteMultiPartResponse();
+                            }
+                        }
+                    } else if (statusResponse.status === 'Failed') {
+                        clearInterval(partPollInterval);
+                        this.handleAsyncAgentFailure(statusResponse);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking for additional parts:', error);
+                });
+        }, 15000); // Poll every 15 seconds for additional parts
+        
+        // Set a timeout to stop waiting for parts
+        setTimeout(() => {
+            if (this.isWaitingForParts) {
+                console.log('Timeout reached while waiting for parts, processing what we have');
+                clearInterval(partPollInterval);
+                this.processCompleteMultiPartResponse();
+            }
+        }, 60000); // Wait up to 1 minute for all parts
+    }
+    
+    /**
+     * Checks if we have received all parts of the response
+     * @param {string} latestResponse - The latest response received
+     * @returns {boolean} - True if all parts are received
+     */
+    hasAllParts(latestResponse) {
+        if (!latestResponse) return false;
+        
+        // Check if the response indicates it's complete
+        const completionIndicators = [
+            'schedule complete',
+            'all sessions included',
+            'final part',
+            'complete schedule',
+            'all parts delivered',
+            'this concludes',
+            'end of schedule',
+            'final schedule'
+        ];
+        
+        const hasCompletionIndicator = completionIndicators.some(indicator => 
+            latestResponse.toLowerCase().includes(indicator.toLowerCase())
+        );
+        
+        // Check if the response no longer mentions "more parts will follow"
+        const noMorePartsIndicators = [
+            'more parts will follow',
+            'part 2 will follow',
+            'additional parts',
+            'continues in'
+        ];
+        
+        const noMorePartsMentioned = !noMorePartsIndicators.some(indicator => 
+            latestResponse.toLowerCase().includes(indicator.toLowerCase())
+        );
+        
+        // Also check if the response length has stabilized (no more content being added)
+        let lengthStabilized = false;
+        if (this.partialResponses.length > 1) {
+            const lastTwoLengths = this.partialResponses.slice(-2).map(r => r.length);
+            lengthStabilized = lastTwoLengths[0] === lastTwoLengths[1];
+        }
+        
+        const hasAllParts = hasCompletionIndicator || (noMorePartsMentioned && lengthStabilized);
+        
+        console.log('hasAllParts check:', {
+            hasCompletionIndicator,
+            noMorePartsMentioned,
+            lengthStabilized,
+            partialResponsesCount: this.partialResponses.length,
+            result: hasAllParts
+        });
+        
+        return hasAllParts;
+    }
+    
+    /**
+     * Processes the complete multi-part response
+     */
+    processCompleteMultiPartResponse() {
+        console.log('=== processCompleteMultiPartResponse called ===');
+        console.log('Total parts collected:', this.partialResponses.length);
+        
+        this.isWaitingForParts = false;
+        this.showAsyncProgress = false;
+        this.asyncProgress = 100;
+        
+        // Combine all parts into a single response
+        const combinedResponse = this.combineMultipleResponses(
+            this.partialResponses.join('\n\n--- PART SEPARATOR ---\n\n')
+        );
+        
+        // Process the combined response
+        this.handleAgentResponse({
+            success: true,
+                isChunked: false,
+                agentResponse: combinedResponse,
+                message: 'Schedule generated successfully (async) - all parts combined'
+        });
+        
+        // Show success message
+        this.dispatchEvent(
+            new ShowToastEvent({
+                title: 'Schedule Generated',
+                message: 'Your conference schedule has been generated successfully using asynchronous processing with multiple parts combined.',
+                variant: 'success'
+            })
+        );
+        
+        // Clean up
+        this.partialResponses = null;
+    }
+    
+    /**
+     * Merges multiple schedule data objects into a single schedule
+     * @param {Array} schedules - Array of schedule objects
+     * @returns {Object} - Merged schedule object
+     */
+    mergeScheduleData(schedules) {
+        try {
+            const mergedSchedule = {
+                schedule: [],
+                sessions: [],
+                totalSessions: 0,
+                locations: new Set(),
+                timeRange: { start: null, end: null }
+            };
+            
+            schedules.forEach((schedule, index) => {
+                console.log(`Processing schedule ${index}:`, Object.keys(schedule));
+                
+                // Extract schedule items
+                const scheduleItems = schedule.schedule || schedule.sessions || schedule.proposedSchedule || [];
+                if (Array.isArray(scheduleItems)) {
+                    mergedSchedule.schedule.push(...scheduleItems);
+                    mergedSchedule.sessions.push(...scheduleItems);
+                }
+                
+                // Extract locations
+                if (schedule.locations && Array.isArray(schedule.locations)) {
+                    schedule.locations.forEach(location => mergedSchedule.locations.add(location));
+                }
+                
+                // Update total sessions
+                if (schedule.totalSessions) {
+                    mergedSchedule.totalSessions += schedule.totalSessions;
+                }
+            });
+            
+            // Convert Set back to array
+            mergedSchedule.locations = Array.from(mergedSchedule.locations);
+            
+            // Calculate total sessions if not already set
+            if (mergedSchedule.totalSessions === 0) {
+                mergedSchedule.totalSessions = mergedSchedule.schedule.length;
+            }
+            
+            console.log(`Merged schedule with ${mergedSchedule.schedule.length} sessions and ${mergedSchedule.locations.length} locations`);
+            return mergedSchedule;
+            
+        } catch (e) {
+            console.log('Failed to merge schedule data:', e.message);
+            return schedules[0] || {};
+        }
+    }
 
+    /**
+     * Parses the agent response to extract the schedule data (frontend version)
+     * @param {string} agentResponse - The raw response from the agent
+     * @returns {Object} - Parsed schedule data or error information
+     */
+    parseAgentResponseFrontend(agentResponse) {
+        console.log('=== parseAgentResponseFrontend called ===');
+        
+        try {
+            // First, try to extract JSON content from Salesforce AI agent wrapper
+            if (agentResponse.includes('"type":"Text"') && agentResponse.includes('"value":')) {
+                console.log('Detected Salesforce AI agent wrapper, extracting value field');
+                
+                // Parse the wrapper to get the value field
+                const wrapper = JSON.parse(agentResponse);
+                if (wrapper.type === 'Text' && wrapper.value) {
+                    let extractedContent = wrapper.value;
+                    
+                    // Fix escaped characters
+                    extractedContent = extractedContent.replace(/\\n/g, '\n');
+                    extractedContent = extractedContent.replace(/\\t/g, '\t');
+                    extractedContent = extractedContent.replace(/\\r/g, '\r');
+                    extractedContent = extractedContent.replace(/\\"/g, '"');
+                    extractedContent = extractedContent.replace(/\\\\/g, '\\');
+                    
+                    console.log('Extracted and fixed content from wrapper');
+                    
+                    // Look for JSON content in the extracted text
+                    const jsonMatch = extractedContent.match(/\{[\s\S]*\}/);
+                    if (jsonMatch) {
+                        try {
+                            const scheduleData = JSON.parse(jsonMatch[0]);
+                            console.log('Successfully parsed schedule data from wrapper');
+                            
+                            // Check for both proposedSchedule (new format) and schedule (fallback)
+                            const scheduleArray = scheduleData.proposedSchedule || scheduleData.schedule;
+                            if (scheduleArray && Array.isArray(scheduleArray)) {
+                                const schedule = scheduleArray;
+                                const locations = [...new Set(schedule.map(s => s.location).filter(Boolean))];
+                                const timeRange = this.calculateTimeRange(schedule);
+                                
+                                return {
+                                    success: true,
+                                    schedule: schedule,
+                                    totalSessions: schedule.length,
+                                    locations: locations,
+                                    timeRange: timeRange,
+                                    note: 'Schedule parsed successfully from AI agent wrapper'
+                                };
+                            }
+                        } catch (parseError) {
+                            console.error('Failed to parse extracted JSON:', parseError);
+                        }
+                    }
+                }
+            }
+            
+            // Fallback to direct JSON parsing
+            try {
+                const scheduleData = JSON.parse(agentResponse);
+                // Check for both proposedSchedule (new format) and schedule (fallback)
+                const scheduleArray = scheduleData.proposedSchedule || scheduleData.schedule;
+                if (scheduleArray && Array.isArray(scheduleArray)) {
+                    const schedule = scheduleArray;
+                    const locations = [...new Set(schedule.map(s => s.location).filter(Boolean))];
+                    const timeRange = this.calculateTimeRange(schedule);
+                    
+                    return {
+                        success: true,
+                        schedule: schedule,
+                        totalSessions: schedule.length,
+                        locations: locations,
+                        timeRange: timeRange,
+                        note: 'Schedule parsed successfully from direct JSON'
+                    };
+                }
+            } catch (parseError) {
+                console.error('Failed to parse direct JSON:', parseError);
+            }
+            
+            return {
+                success: false,
+                error: 'Could not parse schedule data from response',
+                note: 'Frontend parsing failed'
+            };
+            
+        } catch (error) {
+            console.error('Error in parseAgentResponseFrontend:', error);
+            return {
+                success: false,
+                error: error.message,
+                note: 'Frontend parsing error'
+            };
+        }
+    }
+    
     /**
      * Parses the agent response to extract the schedule data
      * @param {string} agentResponse - The raw response from the agent
@@ -478,8 +1381,14 @@ export default class ConferenceScheduler extends LightningElement {
      */
     parseAgentResponse(agentResponse) {
         console.log('=== parseAgentResponse called ===');
+        console.log('Raw response length:', agentResponse?.length || 0);
         console.log('Raw response preview:', agentResponse?.substring(0, 500));
         console.log('Raw response end:', agentResponse?.substring(Math.max(0, (agentResponse?.length || 0) - 200)));
+        
+        // Check if this looks like multiple responses combined
+        if (agentResponse && (agentResponse.includes('}{') || agentResponse.includes(']['))) {
+            console.log('Detected potential multiple responses in combined response');
+        }
         
         if (!agentResponse) {
             return { 
@@ -799,6 +1708,30 @@ export default class ConferenceScheduler extends LightningElement {
             // {"sessionName": "...", "speakers": [...], "location": "...", "startTime": "...", "endTime": "..."}
             // We'll look for objects that have all the essential properties
             
+            // Clean the response first - remove leading/trailing invalid characters
+            let cleanedResponse = response.trim();
+            
+            // Remove leading characters that aren't valid JSON starters
+            while (cleanedResponse.length > 0 && 
+                   !cleanedResponse.startsWith('{') && 
+                   !cleanedResponse.startsWith('[') && 
+                   !cleanedResponse.startsWith('"')) {
+                cleanedResponse = cleanedResponse.substring(1);
+            }
+            
+            // Remove trailing characters that aren't valid JSON enders
+            while (cleanedResponse.length > 0 && 
+                   !cleanedResponse.endsWith('}') && 
+                   !cleanedResponse.endsWith(']') && 
+                   !cleanedResponse.endsWith('"')) {
+                cleanedResponse = cleanedResponse.substring(0, cleanedResponse.length - 1);
+            }
+            
+            if (cleanedResponse !== response) {
+                console.log('Cleaned response for partial extraction from', response.length, 'to', cleanedResponse.length, 'characters');
+                console.log('Cleaned response preview:', cleanedResponse.substring(0, 200));
+            }
+            
             // Split the response into potential session objects
             // Look for complete objects that end with }
             const sessionObjects = [];
@@ -807,8 +1740,8 @@ export default class ConferenceScheduler extends LightningElement {
             let inString = false;
             let escapeNext = false;
             
-            for (let i = 0; i < response.length; i++) {
-                const char = response[i];
+            for (let i = 0; i < cleanedResponse.length; i++) {
+                const char = cleanedResponse[i];
                 
                 if (escapeNext) {
                     escapeNext = false;
@@ -899,7 +1832,7 @@ export default class ConferenceScheduler extends LightningElement {
                 
                 // Look for any object with sessionName using regex
                 const aggressivePattern = /\{[^}]*"sessionName"[^}]*\}/g;
-                const aggressiveMatches = response.match(aggressivePattern);
+                const aggressiveMatches = cleanedResponse.match(aggressivePattern);
                 
                 if (aggressiveMatches) {
                     console.log('Found potential partial session matches:', aggressiveMatches.length);
@@ -1073,7 +2006,7 @@ export default class ConferenceScheduler extends LightningElement {
         const result = schedule.map((session, index) => {
             console.log(`Processing session ${index}:`, session);
             
-            // Handle both possible property names for session name
+            // Handle both database structure and legacy structure
             const sessionName = session.sessionName || session.name || 'Unnamed Session';
             const location = session.location || 'Unknown Location';
             const speakers = session.speakers || session.speaker || [];
@@ -1134,14 +2067,26 @@ export default class ConferenceScheduler extends LightningElement {
     
     /**
      * Format speakers array for display in the table
-     * @param {Array} speakers - Array of speaker names
+     * @param {Array} speakers - Array of speaker names or speaker objects
      * @returns {string} - Formatted speaker string
      */
     formatSpeakersForDisplay(speakers) {
         if (!speakers || !Array.isArray(speakers)) {
             return 'TBD';
         }
-        return speakers.join(', ');
+        
+        // Handle both string arrays and object arrays from database
+        const speakerNames = speakers.map(speaker => {
+            if (typeof speaker === 'string') {
+                return speaker;
+            } else if (speaker && typeof speaker === 'object') {
+                // Database structure: { firstName, lastName, email, fullName }
+                return speaker.fullName || `${speaker.firstName || ''} ${speaker.lastName || ''}`.trim() || 'Unknown Speaker';
+            }
+            return 'Unknown Speaker';
+        });
+        
+        return speakerNames.join(', ');
     }
     
     /**
@@ -1499,6 +2444,27 @@ export default class ConferenceScheduler extends LightningElement {
         this.asyncStatus = null;
         this.asyncProgress = 0;
         this.showAsyncProgress = false;
+        this.isWaitingForParts = false;
+        this.partialResponses = null;
+        
+        // Clean up any active intervals
+        this.cleanupAsyncIntervals();
+    }
+    
+    cleanupAsyncIntervals() {
+        if (this.pollIntervalId) {
+            clearInterval(this.pollIntervalId);
+            this.pollIntervalId = null;
+        }
+        if (this.progressIntervalId) {
+            clearInterval(this.progressIntervalId);
+            this.progressIntervalId = null;
+        }
+    }
+    
+    disconnectedCallback() {
+        // Clean up intervals when component is destroyed
+        this.cleanupAsyncIntervals();
     }
 
     showSuccessMessage(message) {
@@ -1546,5 +2512,43 @@ export default class ConferenceScheduler extends LightningElement {
         }
         
         console.log('=== End Schedule Debug Information ===');
+    }
+
+    /**
+     * @description Queries the database for scheduled sessions to display in the UI
+     */
+    async queryScheduledSessions() {
+        try {
+            console.log('Querying database for scheduled sessions...');
+            
+            // Call the Apex method to get scheduled sessions
+            const scheduledSessions = await getScheduledSessions({ eventId: this.selectedEventId });
+            console.log('Retrieved scheduled sessions:', scheduledSessions);
+            
+            if (scheduledSessions && scheduledSessions.length > 0) {
+                // Update the proposedSchedule with real data from the database
+                this.proposedSchedule = {
+                    success: true,
+                    schedule: scheduledSessions,
+                    totalSessions: scheduledSessions.length,
+                    locations: [...new Set(scheduledSessions.map(s => s.location).filter(Boolean))],
+                    timeRange: this.calculateTimeRange(scheduledSessions),
+                    message: `Successfully retrieved ${scheduledSessions.length} scheduled sessions from database`,
+                    error: null,
+                    note: 'Schedule data retrieved from database'
+                };
+                
+                console.log('Updated proposedSchedule with database data:', this.proposedSchedule);
+            } else {
+                console.log('No scheduled sessions found in database');
+                // Keep the existing success message but indicate no sessions found
+                this.proposedSchedule.note = 'Agent reported success but no sessions were found in database. Sessions may still be processing.';
+            }
+            
+        } catch (error) {
+            console.error('Error querying scheduled sessions:', error);
+            // Keep the existing success message but add error note
+            this.proposedSchedule.note = `Agent reported success but failed to retrieve sessions from database: ${error.message}`;
+        }
     }
 }
