@@ -41,21 +41,6 @@ public with sharing class SessionSpeaker {
     )
     public String speakerEmail;
     
-    @InvocableVariable(
-        description='Speaker Company/Organization'
-    )
-    public String speakerCompany;
-    
-    @InvocableVariable(
-        description='Speaker Title/Role'
-    )
-    public String speakerTitle;
-    
-    @InvocableVariable(
-        description='Speaker Bio'
-    )
-    public String speakerBio;
-    
     // Default constructor
     public SessionSpeaker() {
         this.sessionSpeakerId = null;
@@ -65,9 +50,6 @@ public with sharing class SessionSpeaker {
         this.speakerLastName = '';
         this.speakerFullName = '';
         this.speakerEmail = '';
-        this.speakerCompany = '';
-        this.speakerTitle = '';
-        this.speakerBio = '';
     }
     
     // Constructor with Session_Speaker__c record
@@ -75,13 +57,11 @@ public with sharing class SessionSpeaker {
         this.sessionSpeakerId = sessionSpeakerRecord.Id;
         this.sessionId = sessionSpeakerRecord.Session__c;
         this.speakerId = sessionSpeakerRecord.Speaker__c;
-        this.speakerFirstName = '';
-        this.speakerLastName = '';
-        this.speakerFullName = '';
-        this.speakerEmail = '';
-        this.speakerCompany = '';
-        this.speakerTitle = '';
-        this.speakerBio = '';
+        if (sessionSpeakerRecord.Speaker__r != null) {
+            this.speakerFirstName = sessionSpeakerRecord.Speaker__r.FirstName;
+            this.speakerLastName = sessionSpeakerRecord.Speaker__r.LastName;
+            this.speakerEmail = sessionSpeakerRecord.Speaker__r.Email;
+        }
     }
     
     // Constructor with Session_Speaker__c record and Speaker details
@@ -93,9 +73,6 @@ public with sharing class SessionSpeaker {
         this.speakerLastName = speakerContact.LastName != null ? speakerContact.LastName : '';
         this.speakerFullName = this.buildFullName();
         this.speakerEmail = speakerContact.Email != null ? speakerContact.Email : '';
-        this.speakerCompany = speakerContact.Account != null ? speakerContact.Account.Name : '';
-        this.speakerTitle = speakerContact.Title != null ? speakerContact.Title : '';
-        this.speakerBio = '';
     }
     
     // Constructor with individual parameters
@@ -107,9 +84,6 @@ public with sharing class SessionSpeaker {
         this.speakerLastName = '';
         this.speakerFullName = '';
         this.speakerEmail = '';
-        this.speakerCompany = '';
-        this.speakerTitle = '';
-        this.speakerBio = '';
     }
     
     // Constructor with speaker details
@@ -121,9 +95,6 @@ public with sharing class SessionSpeaker {
         this.speakerLastName = lastName != null ? lastName : '';
         this.speakerFullName = this.buildFullName();
         this.speakerEmail = email != null ? email : '';
-        this.speakerCompany = '';
-        this.speakerTitle = '';
-        this.speakerBio = '';
     }
     
     /**
@@ -169,21 +140,19 @@ public with sharing class SessionSpeaker {
     
     /**
      * @description Checks if the speaker has contact information
-     * @return Boolean indicating if speaker has email or company info
+     * @return Boolean indicating if speaker has email info
      */
     public Boolean hasContactInfo() {
-        return String.isNotBlank(this.speakerEmail) || String.isNotBlank(this.speakerCompany);
+        return String.isNotBlank(this.speakerEmail);
     }
     
     /**
-     * @description Gets a display name for the speaker (full name or company if no name)
+     * @description Gets a display name for the speaker (full name if available)
      * @return String display name
      */
     public String getDisplayName() {
         if (String.isNotBlank(this.speakerFullName)) {
             return this.speakerFullName;
-        } else if (String.isNotBlank(this.speakerCompany)) {
-            return this.speakerCompany;
         } else if (String.isNotBlank(this.speakerFirstName)) {
             return this.speakerFirstName;
         } else if (String.isNotBlank(this.speakerLastName)) {
@@ -201,8 +170,6 @@ public with sharing class SessionSpeaker {
             return this.speakerFirstName;
         } else if (String.isNotBlank(this.speakerLastName)) {
             return this.speakerLastName;
-        } else if (String.isNotBlank(this.speakerCompany)) {
-            return this.speakerCompany;
         }
         return 'Speaker';
     }
@@ -233,7 +200,6 @@ public with sharing class SessionSpeaker {
         contactRecord.FirstName = this.speakerFirstName;
         contactRecord.LastName = this.speakerLastName;
         contactRecord.Email = this.speakerEmail;
-        contactRecord.Title = this.speakerTitle;
         return contactRecord;
     }
     

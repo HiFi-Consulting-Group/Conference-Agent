@@ -1,0 +1,15 @@
+{
+  "unevaluatedProperties" : false,
+  "properties" : {
+    "output" : {
+      "title" : "output",
+      "description" : "Utilize the returned collection of sessions to create new session slots. They will be returned in the format: \n\n[{\"speakers\":[{\"speakerLastName\":\"Adeyemi\",\"speakerId\":\"003gK000000kxkfQAA\",\"speakerFullName\":null,\"speakerFirstName\":\"Zola\",\"speakerEmail\":\"zola.adeyemi76@example.com\",\"sessionSpeakerId\":\"a04gK0000004DYDQA2\",\"sessionId\":\"a05gK000001SNrlQAG\"},{\"speakerLastName\":\"Yamamoto\",\"speakerId\":\"003gK000000kxjTQAQ\",\"speakerFullName\":null,\"speakerFirstName\":\"Ryo\",\"speakerEmail\":\"ryo.yamamoto2@example.com\",\"sessionSpeakerId\":\"a04gK0000004DYEQA2\",\"sessionId\":\"a05gK000001SNrlQAG\"}],\"sessionSlots\":[],\"sessionSlotCount\":0,\"sessionName\":\"Are You an Imposter? OWN IT! Anniversary Edition!\",\"sessionLengthMinutes\":45,\"sessionId\":\"a05gK000001SNrlQAG\",\"sessionAbstract\":\"In honor of MWD Anniversary, reprising the session I first delivered in my career in 2016 at MWD! You are not good enough. You?ll never be able to do it on your own. Everyone else seems to know everything about Salesforce?you don?t really know anything. What if someone asks me a question and I don?t know the answer? Your inner voice ever say things like this? Mine has. Plenty of times. In this session, I will talk about what?s referred to as Imposter syndrome, how it affected me and stories I have heard from other Trailblazer professionals who have dealt with these feelings. I will go over tips that have helped me overcome these negative thoughts that held me back in my career, and how facing your fears and relying on the Trailblazer community can help you succeed and silence the negativity. We will discuss how this pivotal session at MWD in 2016 sparked a community conversation!\",\"requestedRoomSize\":\"Medium (50-150)\",\"isScheduled\":false,\"hasFinalizedSessionSlot\":null,\"hasDraftSessionSlot\":null,\"format\":\"Presentation\",\"focus\":\"Career/Personal Branding\",\"eventId\":\"a01gK000003EcrhQAC\"}]",
+      "lightning:type" : "lightning__textType",
+      "lightning:isPII" : false,
+      "copilotAction:isDisplayable" : false,
+      "copilotAction:isUsedByPlanner" : true,
+      "copilotAction:useHydratedPrompt" : false
+    }
+  },
+  "lightning:type" : "lightning__objectType"
+}

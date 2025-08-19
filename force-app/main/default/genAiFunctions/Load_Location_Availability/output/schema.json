@@ -1,81 +1,9 @@
 {
   "unevaluatedProperties" : false,
   "properties" : {
-    "availabilityDate" : {
-      "title" : "availabilityDate",
-      "description" : "Date of availability",
-      "lightning:type" : "lightning__dateType",
-      "lightning:isPII" : false,
-      "copilotAction:isDisplayable" : false,
-      "copilotAction:isUsedByPlanner" : true,
-      "copilotAction:useHydratedPrompt" : false
-    },
-    "availabilityEnd" : {
-      "title" : "availabilityEnd",
-      "description" : "End time of availability period",
-      "lightning:type" : "lightning__dateTimeStringType",
-      "lightning:isPII" : false,
-      "copilotAction:isDisplayable" : false,
-      "copilotAction:isUsedByPlanner" : true,
-      "copilotAction:useHydratedPrompt" : false
-    },
-    "availabilityStart" : {
-      "title" : "availabilityStart",
-      "description" : "Start time of availability period",
-      "lightning:type" : "lightning__dateTimeStringType",
-      "lightning:isPII" : false,
-      "copilotAction:isDisplayable" : false,
-      "copilotAction:isUsedByPlanner" : true,
-      "copilotAction:useHydratedPrompt" : false
-    },
-    "durationMinutes" : {
-      "title" : "durationMinutes",
-      "description" : "Duration of availability in minutes",
-      "lightning:type" : "lightning__integerType",
-      "lightning:isPII" : false,
-      "copilotAction:isDisplayable" : false,
-      "copilotAction:isUsedByPlanner" : true,
-      "copilotAction:useHydratedPrompt" : false
-    },
-    "eventId" : {
-      "title" : "eventId",
-      "description" : "Event this location belongs to",
-      "lightning:type" : "lightning__recordIdType",
-      "lightning:isPII" : false,
-      "copilotAction:isDisplayable" : false,
-      "copilotAction:isUsedByPlanner" : true,
-      "copilotAction:useHydratedPrompt" : false
-    },
-    "locationId" : {
-      "title" : "locationId",
-      "description" : "Session Location Record Id",
-      "lightning:type" : "lightning__recordIdType",
-      "lightning:isPII" : false,
-      "copilotAction:isDisplayable" : false,
-      "copilotAction:isUsedByPlanner" : true,
-      "copilotAction:useHydratedPrompt" : false
-    },
-    "locationName" : {
-      "title" : "locationName",
-      "description" : "Session Location Name",
-      "lightning:type" : "lightning__textType",
-      "lightning:isPII" : false,
-      "copilotAction:isDisplayable" : false,
-      "copilotAction:isUsedByPlanner" : true,
-      "copilotAction:useHydratedPrompt" : false
-    },
-    "roomCapacity" : {
-      "title" : "roomCapacity",
-      "description" : "Room Capacity",
-      "lightning:type" : "lightning__numberType",
-      "lightning:isPII" : false,
-      "copilotAction:isDisplayable" : false,
-      "copilotAction:isUsedByPlanner" : true,
-      "copilotAction:useHydratedPrompt" : false
-    },
-    "roomSize" : {
-      "title" : "roomSize",
-      "description" : "Room Size Category",
+    "output" : {
+      "title" : "output",
+      "description" : "The action will output a series of availability slots for each room in this JSON format:\n\n[{\"availabilityPeriods\":[{\"availabilityDate\":\"9/1/2025\",\"availabilityEnd\":\"2025-09-01T10:00:00.000Z\",\"availabilityStart\":\"2025-08-31T22:15:00.000Z\",\"durationMinutes\":705,\"eventId\":\"a01gK000003EcrhQAC\",\"locationId\":\"a02gK000000f6KnQAI\",\"locationName\":\"Alternate Lounge\",\"roomCapacity\":25,\"roomSize\":\"Small (under 50)\"},{\"availabilityDate\":\"9/2/2025\",\"availabilityEnd\":\"2025-09-02T16:59:59.000Z\",\"availabilityStart\":\"2025-09-01T17:00:00.000Z\",\"durationMinutes\":1439,\"eventId\":\"a01gK000003EcrhQAC\",\"locationId\":\"a02gK000000f6KnQAI\",\"locationName\":\"Alternate Lounge\",\"roomCapacity\":25,\"roomSize\":\"Small (under 50)\"},{\"availabilityDate\":\"9/3/2025\",\"availabilityEnd\":\"2025-09-03T16:59:59.000Z\",\"availabilityStart\":\"2025-09-02T17:00:00.000Z\",\"durationMinutes\":1439,\"eventId\":\"a01gK000003EcrhQAC\",\"locationId\":\"a02gK000000f6KnQAI\",\"locationName\":\"Alternate Lounge\",\"roomCapacity\":25,\"roomSize\":\"Small (under 50)\"}],\"eventId\":\"a01gK000003EcrhQAC\",\"locationId\":\"a02gK000000f6KnQAI\",\"locationName\":\"Alternate Lounge\",\"roomCapacity\":25,\"roomSize\":\"Small (under 50)\"}]",
       "lightning:type" : "lightning__textType",
       "lightning:isPII" : false,
       "copilotAction:isDisplayable" : false,

@@ -7,8 +7,23 @@
 		<members>Load_Rooms_with_availability_slots</members>
 		<members>Load_Sessions_Organized_by_Slot_Status</members>
 		<members>Load_Sessions_that_need_to_be_scheduled</members>
+		<members>Load_Unscheduled_Sessions</members>
 		<members>Schedule_Sessions</members>
 		<name>GenAiFunction</name>
+	</types>
+	<types>
+		<members>Agent_for_Setup</members>
+		<members>EmployeeCopilotPlanner</members>
+		<members>Scheduling_Agent_1</members>
+		<members>Scheduling_Agent_2</members>
+		<name>GenAiPlannerBundle</name>
+	</types>
+	<types>
+		<members>Schedule_Sessions</members>
+		<members>Session_Scheduling</members>
+		<members>Session_Scheduling_2</members>
+		<members>Session_Scheduling_20</members>
+		<name>GenAiPlugin</name>
 	</types>
 	<version>64.0</version>
 </Package>

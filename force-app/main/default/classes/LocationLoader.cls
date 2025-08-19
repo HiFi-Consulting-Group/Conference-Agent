@@ -40,17 +40,13 @@ public with sharing class LocationLoader {
                 TimeZone timezone = TimeZone.getTimeZone(eventTimezone);
                 Integer timezoneOffsetSeconds = timezone.getOffset(availabilityStart) / 1000;
                 
-                // Convert from UTC to local time by subtracting the offset
-                Datetime localStart = availabilityStart.addSeconds(-timezoneOffsetSeconds);
-                Datetime localEnd = availabilityEnd.addSeconds(-timezoneOffsetSeconds);
-                
-                // Format as local time strings
-                this.availabilityStartLocal = localStart.format();
-                this.availabilityEndLocal = localEnd.format();
+                // Keep times in UTC and format with Z suffix
+                this.availabilityStartLocal = availabilityStart.format('yyyy-MM-dd\'T\'HH:mm:ss.SSS') + 'Z';
+                this.availabilityEndLocal = availabilityEnd.format('yyyy-MM-dd\'T\'HH:mm:ss.SSS') + 'Z';
             } else {
-                // Fallback to UTC if no timezone info
-                this.availabilityStartLocal = availabilityStart != null ? availabilityStart.format() : null;
-                this.availabilityEndLocal = availabilityEnd != null ? availabilityEnd.format() : null;
+                // Fallback to UTC if no timezone info - format as UTC with Z suffix
+                this.availabilityStartLocal = availabilityStart != null ? availabilityStart.format('yyyy-MM-dd\'T\'HH:mm:ss.SSS') + 'Z' : null;
+                this.availabilityEndLocal = availabilityEnd != null ? availabilityEnd.format('yyyy-MM-dd\'T\'HH:mm:ss.SSS') + 'Z' : null;
             }
             
             // Calculate duration in minutes
@@ -305,7 +301,7 @@ public with sharing class LocationLoader {
         }
         
         availabilityJsonStrings.add(JSON.serialize(customJsonList));
-        System.debug('availabilityJsonStrings: ' + availabilityJsonStrings);
+        System.debug('final availabilityJsonStrings: ' + availabilityJsonStrings);
         return availabilityJsonStrings;
     }
     

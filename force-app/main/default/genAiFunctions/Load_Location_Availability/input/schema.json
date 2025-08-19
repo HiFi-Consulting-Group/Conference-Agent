@@ -4,10 +4,10 @@
   "properties" : {
     "eventIds" : {
       "title" : "eventIds",
-      "description" : "Pass the event id to get location availability ranges",
+      "description" : "Provide the Event ID being scheduled",
       "lightning:type" : "lightning__recordIdType",
       "lightning:isPII" : false,
-      "copilotAction:isUserInput" : true
+      "copilotAction:isUserInput" : false
     }
   },
   "lightning:type" : "lightning__objectType"

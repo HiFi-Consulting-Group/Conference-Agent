@@ -69,6 +69,7 @@ public with sharing class UnscheduledSessionLoader {
 
             List<String> sessionJsonStrings = new List<String>();
             sessionJsonStrings.add(JSON.serialize(sessions));
+            System.debug('final sessionJsonStrings: ' + sessionJsonStrings);
             return sessionJsonStrings;
             
         // } catch (Exception e) {
