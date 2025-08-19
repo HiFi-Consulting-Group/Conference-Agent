@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+	<types>
+		<members>Event__c.Event_Timezone__c</members>
+		<name>CustomField</name>
+	</types>
+	<types>
+		<members>Event__c</members>
+		<name>CustomObject</name>
+	</types>
+	<types>
+		<members>Event</members>
+		<members>EventLoader</members>
+		<members>ScheduleAgentController</members>
+		<members>SchedulingAgentQueueable</members>
+		<name>ApexClass</name>
+	</types>
+	<types>
+		<members>conferenceScheduler</members>
+		<name>LightningComponentBundle</name>
+	</types>
+	<types>
+		<members>Insert_Session_Slot_records_to_complete_scheduling</members>
+		<members>Load_Event_by_ID</members>
+		<members>Load_Location_Availability</members>
+		<members>Load_Rooms_with_availability_slots</members>
+		<members>Load_Sessions_Organized_by_Slot_Status</members>
+		<members>Load_Sessions_that_need_to_be_scheduled</members>
+		<members>Load_Unscheduled_Sessions_In_Batches</members>
+		<members>Schedule_Sessions</members>
+		<name>GenAiFunction</name>
+	</types>
+	<version>64.0</version>
+</Package> 

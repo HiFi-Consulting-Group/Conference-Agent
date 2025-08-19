@@ -13,7 +13,7 @@ public with sharing class EventLoader {
         try {
             // Query for the events
             List<Event__c> eventRecords = [
-                SELECT Id, Name, Event_Start_Date__c, Event_End_Date__c
+                SELECT Id, Name, Event_Start_Date__c, Event_End_Date__c, Event_Timezone__c
                 FROM Event__c 
                 WHERE Id IN :eventIds
             ];

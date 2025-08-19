@@ -1,6 +1,5 @@
 import { LightningElement, api, track } from 'lwc';
 import getEvents from '@salesforce/apex/ScheduleAgentController.getEvents';
-import invokeSchedulingAgent from '@salesforce/apex/ScheduleAgentController.invokeSchedulingAgent';
 import invokeSchedulingAgentAsync from '@salesforce/apex/ScheduleAgentController.invokeSchedulingAgentAsync';
 import getAsyncSchedulingAgentStatus from '@salesforce/apex/ScheduleAgentController.getAsyncSchedulingAgentStatus';
 import getScheduledSessions from '@salesforce/apex/ScheduleAgentController.getScheduledSessions';
@@ -111,7 +110,7 @@ export default class ConferenceScheduler extends LightningElement {
 
     get eventOptions() {
         return this.events.map(event => ({
-            label: `${event.Name} (${this.formatDate(event.Event_Start_Date__c)} - ${this.formatDate(event.Event_End_Date__c)})`,
+            label: `${event.Name} (${this.formatDate(event.Event_Start_Date__c)} - ${this.formatDate(event.Event_End_Date__c)})${event.Event_Timezone__c ? ` - ${event.Event_Timezone__c}` : ''}`,
             value: event.Id
         }));
     }
@@ -154,11 +153,11 @@ export default class ConferenceScheduler extends LightningElement {
         const date = new Date(dateString);
         return date.toLocaleDateString();
     }
+    
+
 
     handleContinue() {
-        if (this.selectedOption === 'new') {
-            this.buildProposedSchedule();
-        } else if (this.selectedOption === 'new-async') {
+        if (this.selectedOption === 'new-async') {
             this.buildProposedScheduleAsync();
         } else if (this.selectedOption === 'modify') {
             this.handleModifySchedule();
@@ -169,36 +168,6 @@ export default class ConferenceScheduler extends LightningElement {
         this.resetForm();
     }
 
-    buildProposedSchedule() {
-        this.isLoading = true;
-        this.errorMessage = '';
-        
-        try {
-            // Enhanced message for the
-            // agent with specific JSON structure
-            const userMessage = 'Generate a proposed schedule for '+this.selectedEventId+' based on available rooms and time slots. Save the proposed schedule as Session Slots marked draft. Before selecting times and locations, check the availability of the rooms and time slots. Never schedule a session in a room with a time that overlaps with another session.';
-            
-            console.log('Calling schedule agent with message:', userMessage);
-            
-            // Call the Apex method to invoke the scheduling agent
-            invokeSchedulingAgent({ userMessage: userMessage })
-                .then(response => {
-                    console.log('Agent response:', response);
-                    this.handleAgentResponse(response);
-                })
-                .catch(error => {
-                    console.error('Error calling schedule agent:', error);
-                    this.isLoading = false;
-                    this.errorMessage = error.body?.message || error.message || 'Failed to call schedule agent';
-                });
-            
-        } catch (error) {
-            console.error('Error in buildProposedSchedule:', error);
-            this.errorMessage = 'Failed to build proposed schedule. Please try again.';
-            this.isLoading = false;
-        }
-    }
-    
     buildProposedScheduleAsync() {
         this.isLoading = true;
         this.errorMessage = '';

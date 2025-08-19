@@ -225,6 +225,10 @@ public with sharing class SchedulingAgentQueueable implements Queueable, Databas
         batchMessage += 'If there is no more space available or no more sessions can be scheduled, ';
         batchMessage += 'please indicate this in your response.\n\n';
         
+        // Add timezone reminder to ensure proper scheduling
+        batchMessage += 'Remember: All times should be scheduled in the event timezone specified in the original message. ';
+        batchMessage += 'Do not convert times to other timezones.\n\n';
+        
         return batchMessage;
     }
     

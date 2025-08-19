@@ -36,6 +36,11 @@ public with sharing class Event {
     )
     public Decimal eventDurationHours;
     
+    @InvocableVariable(
+        description='Event Timezone (IANA timezone identifier)'
+    )
+    public String timezone;
+    
     // Default constructor
     public Event() {
         this.eventId = null;
@@ -44,6 +49,7 @@ public with sharing class Event {
         this.endDateTime = null;
         this.eventDurationDays = 0;
         this.eventDurationHours = 0.0;
+        this.timezone = 'UTC';
     }
     
     // Constructor with Event__c record
@@ -52,25 +58,33 @@ public with sharing class Event {
         this.eventName = eventRecord.Name;
         this.startDateTime = eventRecord.Event_Start_Date__c;
         this.endDateTime = eventRecord.Event_End_Date__c;
+        this.timezone = eventRecord.Event_Timezone__c != null ? eventRecord.Event_Timezone__c : 'UTC';
         this.calculateDurations();
     }
     
     // Constructor with individual parameters
     public Event(Id eventId, String eventName, DateTime startDateTime, DateTime endDateTime) {
+        this(eventId, eventName, startDateTime, endDateTime, 'UTC');
+    }
+    
+    // Constructor with individual parameters including timezone
+    public Event(Id eventId, String eventName, DateTime startDateTime, DateTime endDateTime, String timezone) {
         this.eventId = eventId;
         this.eventName = eventName;
         this.startDateTime = startDateTime;
         this.endDateTime = endDateTime;
+        this.timezone = timezone != null ? timezone : 'UTC';
         this.calculateDurations();
     }
     
     // Constructor with name and dates only
     public Event(String eventName, DateTime startDateTime, DateTime endDateTime) {
-        this.eventId = null;
-        this.eventName = eventName;
-        this.startDateTime = startDateTime;
-        this.endDateTime = endDateTime;
-        this.calculateDurations();
+        this(null, eventName, startDateTime, endDateTime, 'UTC');
+    }
+    
+    // Constructor with name, dates, and timezone
+    public Event(String eventName, DateTime startDateTime, DateTime endDateTime, String timezone) {
+        this(null, eventName, startDateTime, endDateTime, timezone);
     }
     
     /**
@@ -141,6 +155,7 @@ public with sharing class Event {
         eventRecord.Name = this.eventName;
         eventRecord.Event_Start_Date__c = this.startDateTime;
         eventRecord.Event_End_Date__c = this.endDateTime;
+        eventRecord.Event_Timezone__c = this.timezone;
         return eventRecord;
     }
     

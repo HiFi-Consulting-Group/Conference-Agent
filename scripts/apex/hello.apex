@@ -208,15 +208,15 @@ System.debug('Created ' + newSessionSpeakers.size() + ' Session_Speaker__c recor
 
 
 
-List<String> results = EventLoader.loadEventById(new List<Id>{'a2DWJ00000EqmGb2AJ'});
-System.debug('results: ' + results);
+List<String> results = EventLoader.loadEventById(new List<Id>{'a01gK000003EcrhQAC'});
+System.debug('results: ' + JSON.serialize(results));
 
 List<String> results2 = SessionLoader.loadSessionsOrganizedBySlotStatus(new List<Id>{'a01gK000003EcrhQAC'});
 System.debug('results2: ' + results2);
 
 //call the LocationLoader class to load location availability
-List<LocationLoader.LocationAvailability> results3 = LocationLoader.loadLocationAvailability(new List<Id>{'a01gK000003EcrhQAC'});
-System.debug('results3: ' + JSON.serialize(results3));
+List<String> results3 = LocationLoader.loadLocationAvailability(new List<Id>{'a01gK000003EcrhQAC'});
+System.debug('results3: ' + results3);
 
 
 

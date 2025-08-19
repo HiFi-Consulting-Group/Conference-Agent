@@ -14,7 +14,7 @@ public with sharing class ScheduleAgentController {
     @AuraEnabled(cacheable=true)
     public static List<Event__c> getEvents() {
         try {
-            return [SELECT Id, Name, Event_Start_Date__c, Event_End_Date__c 
+            return [SELECT Id, Name, Event_Start_Date__c, Event_End_Date__c, Event_Timezone__c
                     FROM Event__c 
                     ORDER BY Event_Start_Date__c DESC];
         } catch (Exception e) {
@@ -56,113 +56,6 @@ public with sharing class ScheduleAgentController {
         return sessionsArrayAsList;
 
     }
-
-    /**
-     * @description This method is used to invoke the Scheduling_Agent_1 to build a proposed schedule.
-     * @Version 1.0
-     * @param userMessage The user message to send to the scheduling agent
-     * @return A map containing the agent response and proposed schedule
-     * @throws AuraHandledException if the agent invocation fails
-     */
-    @AuraEnabled
-    public static Map<String, Object> invokeSchedulingAgent(String userMessage) {
-        try {
-            System.debug('Invoking scheduling agent with message: ' + userMessage);
-
-            userMessage = userMessage + '. Please format your response as a simple JSON object indicating success or failure: { "success": boolean, "message": "string", "slotsUpserted": number }. For example: { "success": true, "message": "Successfully scheduled sessions", "slotsUpserted": 15 } or { "success": false, "message": "Failed to schedule sessions", "slotsUpserted": 0 }. Ensure the response is complete and properly formatted JSON.';
-            
-            // Create the request for the AI agent
-            GenerateAiAgentResponse.GenerateAiAgentResponseRequest request = 
-                new GenerateAiAgentResponse.GenerateAiAgentResponseRequest();
-            request.agentApiName = 'Scheduling_Agent_1';
-            request.userMessage = userMessage;
-            request.sessionId = null;
-            
-            // Invoke the AI agent
-            List<GenerateAiAgentResponse.GenerateAiAgentResponseResult> results = 
-                GenerateAiAgentResponse.generateResponse(new List<GenerateAiAgentResponse.GenerateAiAgentResponseRequest>{request});
-            
-            if (results != null && !results.isEmpty()) {
-                GenerateAiAgentResponse.GenerateAiAgentResponseResult result = results[0];
-                
-                if (result.success) {
-                    System.debug('Agent response received successfully');
-                    System.debug('Response length: ' + (result.agentResponse != null ? String.valueOf(result.agentResponse.length()) : '0'));
-                    System.debug('Response: ' + JSON.serialize(result.agentResponse));
-                    
-                    // Check if the response is already chunked from GenerateAiAgentResponse
-                    if (result.agentResponse != null && result.agentResponse.contains('"isChunked":true')) {
-                        try {
-                            Map<String, Object> chunkedData = (Map<String, Object>) JSON.deserializeUntyped(result.agentResponse);
-                            if (chunkedData.containsKey('isChunked') && (Boolean) chunkedData.get('isChunked')) {
-                                System.debug('Response is already chunked from GenerateAiAgentResponse');
-                                return new Map<String, Object>{
-                                    'success' => true,
-                                    'isChunked' => true,
-                                    'totalChunks' => chunkedData.get('totalChunks'),
-                                    'chunks' => chunkedData.get('chunks'),
-                                    'totalLength' => chunkedData.get('totalLength'),
-                                    'message' => chunkedData.get('message'),
-                                    'agentResponse' => result.agentResponse
-                                };
-                            }
-                        } catch (JSONException e) {
-                            System.debug('Failed to parse chunked response: ' + e.getMessage());
-                        }
-                    }
-                    
-                    // If not chunked, check if we need to apply chunking ourselves
-                    if (result.agentResponse != null && result.agentResponse.length() > 50000) {
-                        System.debug('Response is large, applying chunking in ScheduleAgentController');
-                        List<String> chunks = splitResponseIntoChunks(result.agentResponse, 50000);
-                        
-                        return new Map<String, Object>{
-                            'success' => true,
-                            'isChunked' => true,
-                            'totalChunks' => chunks.size(),
-                            'chunks' => chunks,
-                            'totalLength' => result.agentResponse.length(),
-                            'message' => 'Response chunked due to size',
-                            'agentResponse' => result.agentResponse
-                        };
-                    }
-                    
-                    // Response is not chunked, return as normal
-                    return new Map<String, Object>{
-                        'success' => true,
-                        'isChunked' => false,
-                        'agentResponse' => result.agentResponse,
-                        'message' => 'Schedule generated successfully'
-                    };
-                    
-                } else {
-                    System.debug('Agent invocation failed: ' + result.errorMessage);
-                    return new Map<String, Object>{
-                        'success' => false,
-                        'message' => 'Failed to generate schedule: ' + result.errorMessage,
-                        'error' => result.errorMessage
-                    };
-                }
-            } else {
-                System.debug('No results received from agent');
-                return new Map<String, Object>{
-                    'success' => false,
-                    'message' => 'No response received from scheduling agent',
-                    'error' => 'Empty response'
-                };
-            }
-            
-        } catch (Exception e) {
-            System.debug('Error in invokeSchedulingAgent: ' + e.getMessage());
-            System.debug('Stack trace: ' + e.getStackTraceString());
-            
-            return new Map<String, Object>{
-                'success' => false,
-                'message' => 'Error invoking scheduling agent: ' + e.getMessage(),
-                'error' => e.getMessage()
-            };
-        }
-    }
     
     /**
      * @description Initiates an asynchronous scheduling agent session using a dedicated queueable
@@ -175,7 +68,7 @@ public with sharing class ScheduleAgentController {
     public static Map<String, Object> invokeSchedulingAgentAsync(String userMessage) {
         try {
 
-            userMessage = userMessage + '. Please format your response as a simple JSON object indicating success or failure: { "success": boolean, "message": "string", "slotsUpserted": number }. For example: { "success": true, "message": "Successfully scheduled sessions", "slotsUpserted": 15 } or { "success": false, "message": "Failed to schedule sessions", "slotsUpserted": 0 }. Ensure the response is complete and properly formatted JSON.';
+            userMessage = userMessage + 'Important: The times assigned should match the timezone of the event. Please format your response as a simple JSON object indicating success or failure: { "success": boolean, "message": "string", "slotsUpserted": number }. For example: { "success": true, "message": "Successfully scheduled sessions", "slotsUpserted": 15 } or { "success": false, "message": "Failed to schedule sessions", "slotsUpserted": 0 }. Ensure the response is complete and properly formatted JSON.';
 
             System.debug('Initiating async scheduling agent session with message: ' + userMessage);
             
@@ -550,6 +443,8 @@ public with sharing class ScheduleAgentController {
         
         return structuredResponse;
     }
+    
+
     
     /**
      * @description Splits a large response into smaller chunks to avoid truncation
