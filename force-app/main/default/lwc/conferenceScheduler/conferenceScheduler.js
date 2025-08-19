@@ -177,7 +177,7 @@ export default class ConferenceScheduler extends LightningElement {
         
         try {
             // Enhanced message for the agent with specific JSON structure
-            const userMessage = 'Generate a proposed schedule for '+this.selectedEventId+' based on available rooms and time slots. Save the proposed schedule as Session Slots marked draft. Before selecting times and locations, check the availability of the rooms and time slots. Never schedule a session in a room with a time that overlaps with another session.';
+            const userMessage = 'Generate a proposed schedule for '+this.selectedEventId+' based on available rooms and time slots. Save the proposed schedule as Session Slots marked draft. Please schedule up to 10 sessions at a time. If there is no more space available or no more sessions can be scheduled, please indicate this in your response. Before selecting times and locations, check the availability of the rooms and time slots. Never schedule a session in a room with a time that overlaps with another session. Important: Please format your response as a simple JSON object indicating success or failure: { "success": boolean, "message": "string", "slotsUpserted": number }. For example: { "success": true, "message": "Successfully scheduled sessions", "slotsUpserted": 15 } or { "success": false, "message": "Failed to schedule sessions", "slotsUpserted": 0 }. Ensure the response is complete and properly formatted JSON. Important: Do not schedule sessions to start before 8AM or finish after 5PM. If there are no locations available, please indicate this in your response.';
             
             console.log('Calling async schedule agent with message:', userMessage);
             

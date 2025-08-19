@@ -67,9 +67,6 @@ public with sharing class ScheduleAgentController {
     @AuraEnabled
     public static Map<String, Object> invokeSchedulingAgentAsync(String userMessage) {
         try {
-
-            userMessage = userMessage + 'Important: The times assigned should match the timezone of the event. Please format your response as a simple JSON object indicating success or failure: { "success": boolean, "message": "string", "slotsUpserted": number }. For example: { "success": true, "message": "Successfully scheduled sessions", "slotsUpserted": 15 } or { "success": false, "message": "Failed to schedule sessions", "slotsUpserted": 0 }. Ensure the response is complete and properly formatted JSON.';
-
             System.debug('Initiating async scheduling agent session with message: ' + userMessage);
             
             // Create the async session record directly

@@ -75,11 +75,8 @@ public with sharing class SchedulingAgentQueueable implements Queueable, Databas
             
             System.debug('Found ' + unscheduledCount + ' unscheduled sessions remaining');
             
-            // Create message asking the agent to schedule the next batch
-            String batchMessage = createBatchRequestMessage(unscheduledCount);
-            
             // Invoke the AI agent to schedule the next batch
-            String agentResponse = invokeSchedulingAgent(batchMessage);
+            String agentResponse = invokeSchedulingAgent(this.userMessage );
 
             System.debug('agentResponse:....'+ agentResponse);
             
@@ -211,25 +208,6 @@ public with sharing class SchedulingAgentQueueable implements Queueable, Databas
             // On error, return 0 to stop processing rather than continue with unknown state
             return 0;
         }
-    }
-    
-    /**
-     * @description Creates a message asking the agent to schedule the next batch
-     * @param unscheduledCount The number of unscheduled sessions remaining
-     * @return String message for the scheduling agent
-     */
-    private String createBatchRequestMessage(Integer unscheduledCount) {
-        String batchMessage = this.userMessage + '\n\n';
-        batchMessage += 'There are ' + unscheduledCount + ' unscheduled sessions remaining. ';
-        batchMessage += 'Please schedule up to ' + this.batchSize + ' sessions that can be scheduled. ';
-        batchMessage += 'If there is no more space available or no more sessions can be scheduled, ';
-        batchMessage += 'please indicate this in your response.\n\n';
-        
-        // Add timezone reminder to ensure proper scheduling
-        batchMessage += 'Remember: All times should be scheduled in the event timezone specified in the original message. ';
-        batchMessage += 'Do not convert times to other timezones.\n\n';
-        
-        return batchMessage;
     }
     
     /**
