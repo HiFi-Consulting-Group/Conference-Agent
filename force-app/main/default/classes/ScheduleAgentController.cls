@@ -120,6 +120,99 @@ public with sharing class ScheduleAgentController {
     }
     
     /**
+     * @description Initiates an asynchronous scheduling agent session with an existing session ID for conversation continuity
+     * This provides increased heap and CPU limits compared to the standard async implementation
+     * @param userMessage The user message to send to the scheduling agent
+     * @param sessionId The existing session ID for conversation continuity
+     * @return A map containing the async session ID and status
+     * @throws AuraHandledException if the async session initiation fails
+     */
+    @AuraEnabled
+    public static Map<String, Object> invokeSchedulingAgentAsyncWithSession(String userMessage, String sessionId) {
+        try {
+            System.debug('Initiating async scheduling agent session with message: ' + userMessage + ' and session ID: ' + sessionId);
+            
+            // Create the async session record directly
+            Async_Agent_Session__c asyncSession = new Async_Agent_Session__c(
+                Agent_API_Name__c = 'Scheduling_Agent_1',
+                User_Message__c = userMessage,
+                Session_ID__c = sessionId,
+                Status__c = 'Pending',
+                Started_At__c = System.now()
+            );
+            
+            insert asyncSession;
+            
+            System.debug('Created async session with ID: ' + asyncSession.Id);
+            
+            // Enqueue the dedicated scheduling agent queueable for increased limits
+            SchedulingAgentQueueable executor = new SchedulingAgentQueueable(
+                asyncSession.Id, 
+                userMessage, 
+                sessionId
+            );
+            
+            System.enqueueJob(executor);
+            
+            System.debug('Enqueued SchedulingAgentQueueable for increased limits');
+            
+            // Update the session status to Processing since the job is now queued
+            // This is safe to do here because we're not making any callouts
+            asyncSession.Status__c = 'Processing';
+            update asyncSession;
+            
+            return new Map<String, Object>{
+                'success' => true,
+                'asyncSessionId' => asyncSession.Id,
+                'status' => 'Processing', // Set to Processing since the job is queued
+                'message' => 'Async scheduling agent session initiated successfully with increased resource limits. You can monitor progress and retrieve results when ready.',
+                'isAsync' => true,
+                'queueableType' => 'SchedulingAgentQueueable'
+            };
+            
+        } catch (Exception e) {
+            System.debug('Error in invokeSchedulingAgentAsyncWithSession: ' + e.getMessage());
+            System.debug('Stack trace: ' + e.getStackTraceString());
+            
+            return new Map<String, Object>{
+                'success' => false,
+                'message' => 'Error initiating async scheduling agent session: ' + e.getMessage(),
+                'error' => e.getMessage()
+            };
+        }
+    }
+    
+    /**
+     * @description Continues a conversation with an existing session ID
+     * @param userMessage The user message to send to the scheduling agent
+     * @param sessionId The existing session ID for conversation continuity
+     * @return A map containing the async session ID and status
+     */
+    @AuraEnabled
+    public static Map<String, Object> continueSchedulingAgentConversation(String userMessage, String sessionId) {
+        try {
+            System.debug('Continuing scheduling agent conversation with session ID: ' + sessionId);
+            
+            if (String.isBlank(sessionId)) {
+                throw new AuraHandledException('Session ID is required to continue a conversation');
+            }
+            
+            // Use the new method with the session ID
+            return invokeSchedulingAgentAsyncWithSession(userMessage, sessionId);
+            
+        } catch (Exception e) {
+            System.debug('Error continuing scheduling agent conversation: ' + e.getMessage());
+            System.debug('Stack trace: ' + e.getStackTraceString());
+            
+            return new Map<String, Object>{
+                'success' => false,
+                'message' => 'Error continuing scheduling agent conversation: ' + e.getMessage(),
+                'error' => e.getMessage()
+            };
+        }
+    }
+    
+    /**
      * @description Retrieves the status and results of an async scheduling agent session
      * @param asyncSessionId The ID of the async agent session
      * @return A map containing the session status and results

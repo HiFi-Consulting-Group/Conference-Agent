@@ -79,11 +79,44 @@ public with sharing class SchedulingAgentQueueable implements Queueable, Databas
             String agentResponse = invokeSchedulingAgent(this.userMessage );
 
             System.debug('agentResponse:....'+ agentResponse);
+            System.debug('agentResponse length: ' + (agentResponse != null ? String.valueOf(agentResponse.length()) : 'null'));
+            
+            // Try to parse the raw response to see its structure
+            try {
+                Map<String, Object> rawParsed = (Map<String, Object>) JSON.deserializeUntyped(agentResponse);
+                System.debug('Raw agent response keys: ' + rawParsed.keySet());
+                System.debug('Raw agent response: ' + JSON.serialize(rawParsed));
+                
+                // Check if the raw response already contains a sessionId
+                if (rawParsed.containsKey('sessionId')) {
+                    System.debug('Found sessionId in raw response: ' + rawParsed.get('sessionId'));
+                } else {
+                    System.debug('No sessionId found in raw response');
+                }
+            } catch (Exception parseError) {
+                System.debug('Could not parse raw agent response as JSON: ' + parseError.getMessage());
+                System.debug('Raw response content: ' + agentResponse);
+            }
             
             // Process the agent response
             Map<String, Object> processResult = processAgentResponse(agentResponse);
             Boolean batchProcessed = (Boolean) processResult.get('success');
             String agentMessage = (String) processResult.get('message');
+            
+            // Update the session status immediately after processing to capture any session ID
+            // This ensures the session ID is saved even if the process fails later
+            if (String.isNotBlank(this.sessionId)) {
+                System.debug('Updating session status to capture session ID: ' + this.sessionId);
+                updateAsyncSessionStatus(asyncSessionId, 'Processing', null, null);
+            } else {
+                // If no session ID was provided by the agent, generate one for conversation continuity
+                System.debug('No session ID provided by agent, generating one for conversation continuity');
+                this.sessionId = 'session_' + System.currentTimeMillis() + '_' + asyncSessionId;
+                System.debug('Generated session ID: ' + this.sessionId);
+                
+                // Update the session status to capture the generated session ID
+                updateAsyncSessionStatus(asyncSessionId, 'Processing', null, null);
+            }
             
             if (batchProcessed) {
                 // Batch processed successfully, update count
@@ -304,9 +337,65 @@ public with sharing class SchedulingAgentQueueable implements Queueable, Databas
             }
             
             // Extract session ID from the response if this is the first response
-            if (this.sessionId == null && parsedResponse.containsKey('sessionId')) {
-                this.sessionId = (String) parsedResponse.get('sessionId');
-                System.debug('Captured session ID from agent response: ' + this.sessionId);
+            System.debug('Checking for session ID in response. Current sessionId: ' + this.sessionId);
+            System.debug('Response keys: ' + parsedResponse.keySet());
+            
+            if (this.sessionId == null) {
+                // Check multiple possible session ID field names
+                String newSessionId = null;
+                
+                if (parsedResponse.containsKey('sessionId')) {
+                    newSessionId = (String) parsedResponse.get('sessionId');
+                    System.debug('Found sessionId field: ' + newSessionId);
+                } else if (parsedResponse.containsKey('session_id')) {
+                    newSessionId = (String) parsedResponse.get('session_id');
+                    System.debug('Found session_id field: ' + newSessionId);
+                } else if (parsedResponse.containsKey('session')) {
+                    newSessionId = (String) parsedResponse.get('session');
+                    System.debug('Found session field: ' + newSessionId);
+                } else if (parsedResponse.containsKey('conversationId')) {
+                    newSessionId = (String) parsedResponse.get('conversationId');
+                    System.debug('Found conversationId field: ' + newSessionId);
+                } else if (parsedResponse.containsKey('id')) {
+                    newSessionId = (String) parsedResponse.get('id');
+                    System.debug('Found id field: ' + newSessionId);
+                }
+                
+                // If still no session ID found, check if there's a nested structure
+                if (String.isBlank(newSessionId)) {
+                    System.debug('Checking for nested session ID structures...');
+                    
+                    // Check for nested response structures
+                    if (parsedResponse.containsKey('response') && parsedResponse.get('response') instanceof Map<String, Object>) {
+                        Map<String, Object> nestedResponse = (Map<String, Object>) parsedResponse.get('response');
+                        System.debug('Found nested response with keys: ' + nestedResponse.keySet());
+                        
+                        if (nestedResponse.containsKey('sessionId')) {
+                            newSessionId = (String) nestedResponse.get('sessionId');
+                            System.debug('Found sessionId in nested response: ' + newSessionId);
+                        }
+                    }
+                    
+                    // Check for data wrapper
+                    if (parsedResponse.containsKey('data') && parsedResponse.get('data') instanceof Map<String, Object>) {
+                        Map<String, Object> dataWrapper = (Map<String, Object>) parsedResponse.get('data');
+                        System.debug('Found data wrapper with keys: ' + dataWrapper.keySet());
+                        
+                        if (dataWrapper.containsKey('sessionId')) {
+                            newSessionId = (String) dataWrapper.get('sessionId');
+                            System.debug('Found sessionId in data wrapper: ' + newSessionId);
+                        }
+                    }
+                }
+                
+                if (String.isNotBlank(newSessionId)) {
+                    this.sessionId = newSessionId;
+                    System.debug('Captured session ID from agent response: ' + this.sessionId);
+                } else {
+                    System.debug('No session ID found in agent response after checking all possible locations');
+                }
+            } else {
+                System.debug('Session ID already exists: ' + this.sessionId);
             }
             
             // Check if the agent indicates no more space
@@ -574,10 +663,24 @@ public with sharing class SchedulingAgentQueueable implements Queueable, Databas
     
     private void updateAsyncSessionStatus(String asyncSessionId, String status, String agentResponse, String errorMessage, DateTime completedAt, Decimal processingTimeSeconds) {
         try {
+            System.debug('=== updateAsyncSessionStatus called ===');
+            System.debug('asyncSessionId: ' + asyncSessionId);
+            System.debug('status: ' + status);
+            System.debug('this.sessionId: ' + this.sessionId);
+            System.debug('this.sessionId is blank: ' + String.isBlank(this.sessionId));
+            
             Async_Agent_Session__c session = new Async_Agent_Session__c(
                 Id = asyncSessionId,
                 Status__c = status
             );
+            
+            // Always update the Session_ID__c field if we have captured a session ID
+            if (String.isNotBlank(this.sessionId)) {
+                session.Session_ID__c = this.sessionId;
+                System.debug('Setting Session_ID__c to: ' + this.sessionId);
+            } else {
+                System.debug('No session ID to set - this.sessionId is blank or null');
+            }
             
             if (status == 'Completed') {
                 session.Agent_Response__c = agentResponse;
@@ -590,11 +693,13 @@ public with sharing class SchedulingAgentQueueable implements Queueable, Databas
                 session.Completed_At__c = System.now();
             }
             
+            System.debug('About to update session with: ' + JSON.serialize(session));
             update session;
-            System.debug('Updated async session status to: ' + status);
+            System.debug('Successfully updated async session status to: ' + status + ' with Session_ID__c: ' + this.sessionId);
             
         } catch (Exception e) {
             System.debug('Error updating async session status: ' + e.getMessage());
+            System.debug('Stack trace: ' + e.getStackTraceString());
             // Log the error but don't throw it to avoid breaking the queueable execution
         }
     }

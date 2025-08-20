@@ -1,6 +1,8 @@
 import { LightningElement, api, track } from 'lwc';
 import getEvents from '@salesforce/apex/ScheduleAgentController.getEvents';
 import invokeSchedulingAgentAsync from '@salesforce/apex/ScheduleAgentController.invokeSchedulingAgentAsync';
+import invokeSchedulingAgentAsyncWithSession from '@salesforce/apex/ScheduleAgentController.invokeSchedulingAgentAsyncWithSession';
+import continueSchedulingAgentConversation from '@salesforce/apex/ScheduleAgentController.continueSchedulingAgentConversation';
 import getAsyncSchedulingAgentStatus from '@salesforce/apex/ScheduleAgentController.getAsyncSchedulingAgentStatus';
 import getScheduledSessions from '@salesforce/apex/ScheduleAgentController.getScheduledSessions';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
@@ -29,6 +31,11 @@ export default class ConferenceScheduler extends LightningElement {
     @track showAsyncProgress = false;
     @track isWaitingForParts = false;
     @track partialResponses = null;
+    
+    // Session ID tracking for conversation continuity
+    @track agentSessionId = null;
+    @track showContinueConversation = false;
+    @track continueMessage = '';
 
     // Table configuration
     scheduleTableColumns = [
@@ -175,9 +182,12 @@ export default class ConferenceScheduler extends LightningElement {
         this.showAsyncProgress = true;
         this.asyncProgress = 0;
         
+        // Reset any existing session ID when starting a new schedule
+        this.resetContinueConversation();
+        
         try {
             // Enhanced message for the agent with specific JSON structure
-            const userMessage = 'Generate a proposed schedule for '+this.selectedEventId+' based on available rooms and time slots. Save the proposed schedule as Session Slots marked draft. Please schedule up to 10 sessions at a time. If there is no more space available or no more sessions can be scheduled, please indicate this in your response. Before selecting times and locations, check the availability of the rooms and time slots. Never schedule a session in a room with a time that overlaps with another session. Important: Please format your response as a simple JSON object indicating success or failure: { "success": boolean, "message": "string", "slotsUpserted": number }. For example: { "success": true, "message": "Successfully scheduled sessions", "slotsUpserted": 15 } or { "success": false, "message": "Failed to schedule sessions", "slotsUpserted": 0 }. Ensure the response is complete and properly formatted JSON. Important: Do not schedule sessions to start before 8AM or finish after 5PM. If there are no locations available, please indicate this in your response.';
+            const userMessage = 'Generate a proposed schedule for '+this.selectedEventId+' based on available rooms and time slots. Save the proposed schedule as Session Slots marked draft. Please schedule up to 10 sessions at a time. If there is no more space available or no more sessions can be scheduled, please indicate this in your response. Before selecting times and locations, check the availability of the rooms and time slots. Never schedule a session in a room with a time that overlaps with another session. CRITICAL: You MUST include a sessionId field in your response for conversation continuity. This sessionId should be a unique identifier that allows you to remember this conversation context. Please format your response as a simple JSON object: { "success": boolean, "message": "string", "slotsUpserted": number, "sessionId": "string" }. For example: { "success": true, "message": "Successfully scheduled sessions", "slotsUpserted": 15, "sessionId": "conv_12345" } or { "success": false, "message": "Failed to schedule sessions", "slotsUpserted": 0, "sessionId": "conv_12345" }. The sessionId field is MANDATORY and must be included in every response. Ensure the response is complete and properly formatted JSON. Important: Do not schedule sessions to start before 8AM or finish after 5PM. If there are no locations available, please indicate this in your response.';
             
             console.log('Calling async schedule agent with message:', userMessage);
             
@@ -353,6 +363,15 @@ export default class ConferenceScheduler extends LightningElement {
         console.log('statusResponse keys:', Object.keys(statusResponse));
         console.log('statusResponse.parsedSchedule:', statusResponse.parsedSchedule);
         console.log('statusResponse.agentResponse:', statusResponse.agentResponse);
+        
+        // Extract and store the session ID for conversation continuity
+        if (statusResponse.sessionId) {
+            this.agentSessionId = statusResponse.sessionId;
+            console.log('Captured agent session ID for conversation continuity:', this.agentSessionId);
+            
+            // Show option to continue conversation
+            this.showContinueConversation = true;
+        }
         
         // Check if we have a direct agent response (e.g., completion message from queueable)
         if (statusResponse.agentResponse && !statusResponse.agentResponse.startsWith('{')) {
@@ -2212,6 +2231,67 @@ export default class ConferenceScheduler extends LightningElement {
         const otherLocations = locations.slice(0, -1);
         return `${otherLocations.join(', ')}, and ${lastLocation}`;
     }
+    
+    /**
+     * Handles continuing a conversation with an existing session ID
+     */
+    handleContinueConversation() {
+        if (!this.agentSessionId || !this.continueMessage.trim()) {
+            this.dispatchEvent(
+                new ShowToastEvent({
+                    title: 'Error',
+                    message: 'Please enter a message to continue the conversation.',
+                    variant: 'error'
+                })
+            );
+            return;
+        }
+        
+        this.isLoading = true;
+        this.errorMessage = '';
+        
+        console.log('Continuing conversation with session ID:', this.agentSessionId);
+        console.log('Message:', this.continueMessage);
+        
+        // Call the continue conversation method
+        continueSchedulingAgentConversation({ 
+            userMessage: this.continueMessage, 
+            sessionId: this.agentSessionId 
+        })
+        .then(response => {
+            console.log('Continue conversation response:', response);
+            this.handleAsyncAgentInitiation(response);
+        })
+        .catch(error => {
+            console.error('Error continuing conversation:', error);
+            this.isLoading = false;
+            this.errorMessage = error.body?.message || error.message || 'Failed to continue conversation';
+            
+            this.dispatchEvent(
+                new ShowToastEvent({
+                    title: 'Error',
+                    message: this.errorMessage,
+                    variant: 'error'
+                })
+            );
+        });
+    }
+    
+    /**
+     * Handles input change for continue conversation message
+     */
+    handleContinueMessageChange(event) {
+        this.continueMessage = event.target.value;
+    }
+    
+    /**
+     * Resets the continue conversation state
+     */
+    resetContinueConversation() {
+        this.showContinueConversation = false;
+        this.continueMessage = '';
+        this.agentSessionId = null;
+    }
 
     /**
      * Returns true if there's no schedule data to display
@@ -2395,6 +2475,8 @@ export default class ConferenceScheduler extends LightningElement {
     handleTryAgain() {
         this.showResults = false;
         this.proposedSchedule = null;
+        // Reset any existing session ID when trying again
+        this.resetContinueConversation();
         if (this.isAsyncMode) {
             this.buildProposedScheduleAsync();
         } else {
@@ -2464,6 +2546,9 @@ export default class ConferenceScheduler extends LightningElement {
         this.showAsyncProgress = false;
         this.isWaitingForParts = false;
         this.partialResponses = null;
+        
+        // Reset session ID and conversation state
+        this.resetContinueConversation();
         
         // Clean up any active intervals
         this.cleanupAsyncIntervals();

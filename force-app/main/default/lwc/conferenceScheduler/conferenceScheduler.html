@@ -41,12 +41,23 @@
                     <!-- Status Information -->
                     <div class="slds-grid slds-grid_align-spread slds-m-bottom_small">
                         <div class="slds-text-body_small">
-                            <strong>Session ID:</strong> {asyncSessionId}
+                            <strong>Async Session ID:</strong> {asyncSessionId}
                         </div>
                         <div class="slds-text-body_small">
                             <strong>Status:</strong> {asyncStatus}
                         </div>
                     </div>
+                    
+                    <!-- Agent Session ID for Conversation Continuity -->
+                    <template if:true={agentSessionId}>
+                        <div class="slds-grid slds-grid_align-spread slds-m-bottom_small">
+                            <div class="slds-text-body_small">
+                                <strong>Agent Session ID:</strong> {agentSessionId}
+                                <lightning-icon icon-name="utility:info" size="x-small" class="slds-m-left_x-small" 
+                                              title="This session ID allows the agent to maintain conversation context"></lightning-icon>
+                            </div>
+                        </div>
+                    </template>
                     
                     <!-- Async Controls -->
                     <template if:true={showAsyncControls}>
@@ -252,6 +263,67 @@
                                 onclick={handleAcceptSchedule}>
                             </lightning-button>
                         </div>
+                        
+                        <!-- Continue Conversation Section -->
+                        <template if:true={showContinueConversation}>
+                            <div class="slds-box slds-m-top_medium slds-border_around">
+                                <div class="slds-grid slds-grid_align-spread slds-m-bottom_small">
+                                    <h3 class="slds-text-heading_small">
+                                        <lightning-icon icon-name="utility:chat" size="small" class="slds-m-right_x-small"></lightning-icon>
+                                        Continue Conversation
+                                    </h3>
+                                    <div class="slds-badge slds-theme_default">
+                                        Session ID: {agentSessionId}
+                                    </div>
+                                </div>
+                                
+                                <div class="slds-text-body_small slds-m-bottom_small">
+                                    <strong>Session ID:</strong> {agentSessionId}<br/>
+                                    <strong>Status:</strong> Ready to continue conversation
+                                </div>
+                                
+                                <div class="slds-form-element slds-m-bottom_medium">
+                                    <label class="slds-form-element__label" for="continueMessage">
+                                        <abbr class="slds-required" title="required">*</abbr>Message
+                                    </label>
+                                    <div class="slds-form-element__control">
+                                        <lightning-textarea
+                                            id="continueMessage"
+                                            name="continueMessage"
+                                            value={continueMessage}
+                                            onchange={handleContinueMessageChange}
+                                            placeholder="Enter your message to continue the conversation with the scheduling agent..."
+                                            rows="3"
+                                            required>
+                                        </lightning-textarea>
+                                    </div>
+                                </div>
+                                
+                                <div class="slds-text-align_right">
+                                    <lightning-button
+                                        label="Reset Session"
+                                        variant="neutral"
+                                        onclick={resetContinueConversation}
+                                        class="slds-m-right_x-small">
+                                    </lightning-button>
+                                    <lightning-button
+                                        label="Continue Conversation"
+                                        variant="brand"
+                                        onclick={handleContinueConversation}
+                                        disabled={isLoading}>
+                                    </lightning-button>
+                                </div>
+                                
+                                <div class="slds-notify slds-notify_alert slds-theme_default slds-m-top_small" role="alert">
+                                    <span class="slds-assistive-text">info</span>
+                                    <lightning-icon icon-name="utility:info" alternative-text="Information" size="small" class="slds-m-right_x-small"></lightning-icon>
+                                    <h2 class="slds-notify__content">
+                                        <strong>Conversation Continuity:</strong> You can continue your conversation with the scheduling agent using the same session ID. 
+                                        This allows the agent to remember previous scheduling decisions and maintain consistency.
+                                    </h2>
+                                </div>
+                            </div>
+                        </template>
                     </div>
                 </template>
 
