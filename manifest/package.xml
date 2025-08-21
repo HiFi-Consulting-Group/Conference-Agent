@@ -7,6 +7,7 @@
 		<members>Load_Rooms_with_availability_slots</members>
 		<members>Load_Sessions_Organized_by_Slot_Status</members>
 		<members>Load_Sessions_that_need_to_be_scheduled</members>
+		<members>Load_Unscheduled_Sessions_In_Batches</members>
 		<members>Schedule_Sessions</members>
 		<name>GenAiFunction</name>
 	</types>

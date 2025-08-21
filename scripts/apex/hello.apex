@@ -221,5 +221,5 @@ System.debug('results3: ' + results3);
 
 
 // loadUnscheduledSessions
-List <Session> results4 = UnscheduledSessionLoader.loadUnscheduledSessions(new List<Integer>{100});
-System.debug('results4: ' + JSON.serialize(results4));
+List <String> results4 = UnscheduledSessionLoader.loadUnscheduledSessions(new List<Integer>{100});
+System.debug('results4: ' + results4);

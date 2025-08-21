@@ -50,8 +50,8 @@ public with sharing class UnscheduledSessionLoader {
             // Execute the query
             List<Session__c> unscheduledSessions = Database.query(query);
             
-            // Convert to Session wrapper objects and serialize to JSON strings
-            List < Session > sessions = new List<Session>();
+            // Convert to Session wrapper objects
+            List<Session> sessions = new List<Session>();
             
             for (Session__c sessionRecord : unscheduledSessions) {
                 Session session = new Session(sessionRecord);
@@ -59,7 +59,18 @@ public with sharing class UnscheduledSessionLoader {
                 // Add speakers if they exist (already loaded via subquery)
                 if (sessionRecord.Session_Speakers__r != null && !sessionRecord.Session_Speakers__r.isEmpty()) {
                     for (Session_Speaker__c sessionSpeakerRecord : sessionRecord.Session_Speakers__r) {
-                        SessionSpeaker speaker = new SessionSpeaker(sessionSpeakerRecord);
+                        // Create a Contact object with the speaker details from the subquery
+                        Contact speakerContact = new Contact(
+                            Id = sessionSpeakerRecord.Speaker__c,
+                            FirstName = sessionSpeakerRecord.Speaker__r.FirstName,
+                            LastName = sessionSpeakerRecord.Speaker__r.LastName,
+                            Email = sessionSpeakerRecord.Speaker__r.Email,
+                            Title = sessionSpeakerRecord.Speaker__r.Title,
+                            Account = sessionSpeakerRecord.Speaker__r.Account != null ? 
+                                new Account(Name = sessionSpeakerRecord.Speaker__r.Account.Name) : null
+                        );
+                        
+                        SessionSpeaker speaker = new SessionSpeaker(sessionSpeakerRecord, speakerContact);
                         session.addSpeaker(speaker);
                     }
                 }
@@ -67,6 +78,7 @@ public with sharing class UnscheduledSessionLoader {
                 sessions.add(session);
             }
 
+            // Match the LocationLoader pattern exactly: create a list with a single JSON string
             List<String> sessionJsonStrings = new List<String>();
             sessionJsonStrings.add(JSON.serialize(sessions));
             return sessionJsonStrings;
