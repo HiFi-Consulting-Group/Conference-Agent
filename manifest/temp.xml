@@ -14,15 +14,15 @@
     </types>
     <types>
       <members>*</members>
-      <name>genAiPlanner</name>
-    </types>
-    <types>
-      <members>*</members>
       <name>genAiFunction</name>
     </types>
     <types>
       <members>*</members>
       <name>LightningComponentBundle</name>
     </types>
-    <version>63.0</version>
+        <types>
+      <members>*</members>
+      <name>GenAiPlannerBundle</name>
+    </types>
+    <version>64.0</version>
 </Package>
