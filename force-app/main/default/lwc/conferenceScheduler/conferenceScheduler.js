@@ -366,7 +366,8 @@ export default class ConferenceScheduler extends LightningElement {
                 new ShowToastEvent({
                     title: 'Schedule Processing Completed',
                     message: completionMessage,
-                    variant: 'success'
+                    variant: 'success',
+                    mode: 'sticky'
                 })
             );
             

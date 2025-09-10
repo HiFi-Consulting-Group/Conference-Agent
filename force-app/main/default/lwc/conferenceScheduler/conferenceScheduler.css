@@ -1,2 +1,61 @@
 /* Conference Scheduler Component Styles */
-/* No special styling needed - using standard SLDS */ 
+/* Override lightning-card width constraints */
+lightning-card {
+    width: 100% !important;
+    max-width: none !important;
+}
+
+/* Override card constraints to allow full-width datatable */
+.slds-card {
+    width: 100%;
+    max-width: none;
+}
+
+.slds-card__body {
+    width: 100%;
+    padding: 0;
+}
+
+/* Make datatable take full width */
+lightning-datatable {
+    width: 100%;
+    max-width: none;
+}
+
+/* Ensure the schedule table container takes full width */
+.schedule-table-container {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+}
+
+/* Full width datatable class */
+.full-width-datatable {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 100% !important;
+}
+
+/* Ensure datatable within schedule table container takes full width */
+.schedule-table-container lightning-datatable {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 100% !important;
+}
+
+/* Override any SLDS grid constraints that might limit width */
+.slds-grid {
+    width: 100%;
+}
+
+.slds-col {
+    width: 100%;
+}
+
+/* Ensure main container takes full width */
+.slds-p-around_medium {
+    width: 100%;
+    max-width: none;
+    padding: 1rem;
+}

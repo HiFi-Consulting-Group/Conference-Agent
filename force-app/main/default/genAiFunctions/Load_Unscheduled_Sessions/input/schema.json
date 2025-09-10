@@ -1,0 +1,14 @@
+{
+  "required" : [ "sessionLimit" ],
+  "unevaluatedProperties" : false,
+  "properties" : {
+    "sessionLimit" : {
+      "title" : "sessionLimit",
+      "description" : "The number of unscheduled sessions to be returned. The user may specify, or default to 10.",
+      "lightning:type" : "lightning__integerType",
+      "lightning:isPII" : false,
+      "copilotAction:isUserInput" : false
+    }
+  },
+  "lightning:type" : "lightning__objectType"
+}

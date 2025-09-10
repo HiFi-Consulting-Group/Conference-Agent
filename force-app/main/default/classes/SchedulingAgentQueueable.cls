@@ -142,9 +142,21 @@ public with sharing class SchedulingAgentQueueable implements Queueable, Databas
                 // Batch processing failed, mark as failed
                 System.debug('Batch processing failed. Marking as failed.');
                 String errorMessage = 'Failed to process batch of ' + this.batchSize + ' sessions.';
-                if (String.isNotBlank(agentMessage)) {
+                
+                // Check if this is a JSON parsing error
+                if (processResult.containsKey('error')) {
+                    String errorDetail = (String) processResult.get('error');
+                    if (errorDetail.contains('Failed to parse JSON response') || 
+                        errorDetail.contains('Agent returned plain text') ||
+                        errorDetail.contains('Response is not valid JSON')) {
+                        errorMessage += ' Agent response format error: ' + errorDetail;
+                    } else {
+                        errorMessage += ' Agent message: ' + agentMessage;
+                    }
+                } else if (String.isNotBlank(agentMessage)) {
                     errorMessage += ' Agent message: ' + agentMessage;
                 }
+                
                 updateAsyncSessionStatus(asyncSessionId, 'Failed', null, errorMessage);
             }
             
@@ -395,6 +407,42 @@ public with sharing class SchedulingAgentQueueable implements Queueable, Databas
      */
     private Map<String, Object> parseScheduleResponse(String agentResponse) {
         try {
+            // First, check if the response is valid JSON by looking at the first character
+            if (String.isBlank(agentResponse)) {
+                return new Map<String, Object>{'error' => 'Empty agent response received'};
+            }
+            
+            String trimmedResponse = agentResponse.trim();
+            
+            // Check if response starts with valid JSON characters
+            if (!trimmedResponse.startsWith('{') && !trimmedResponse.startsWith('[')) {
+                // This is likely a plain text response, not JSON
+                System.debug('Agent returned plain text response instead of JSON: ' + trimmedResponse.substring(0, Math.min(100, trimmedResponse.length())));
+                
+                // Check if it's a common error message
+                String lowerResponse = trimmedResponse.toLowerCase();
+                if (lowerResponse.contains('cannot') || lowerResponse.contains('failed') || 
+                    lowerResponse.contains('error') || lowerResponse.contains('unable') ||
+                    lowerResponse.contains('i cannot') || lowerResponse.contains('i need') ||
+                    lowerResponse.contains('i am unable')) {
+                    
+                    return new Map<String, Object>{
+                        'success' => false,
+                        'message' => 'Agent reported: ' + trimmedResponse,
+                        'slotsUpserted' => 0,
+                        'error' => 'Agent returned plain text error instead of JSON response'
+                    };
+                }
+                
+                // If it's not a clear error, treat it as a failure
+                return new Map<String, Object>{
+                    'success' => false,
+                    'message' => 'Agent response format error: Expected JSON but received plain text',
+                    'slotsUpserted' => 0,
+                    'error' => 'Response is not valid JSON: ' + trimmedResponse.substring(0, Math.min(200, trimmedResponse.length()))
+                };
+            }
+            
             // Try to parse as JSON
             Map<String, Object> parsed = (Map<String, Object>) JSON.deserializeUntyped(agentResponse);
             
@@ -403,9 +451,82 @@ public with sharing class SchedulingAgentQueueable implements Queueable, Databas
                 String valueContent = (String) parsed.get('value');
                 System.debug('Found Text type response, parsing nested value: ' + valueContent);
                 
-                // Parse the nested JSON content
-                Map<String, Object> nestedContent = (Map<String, Object>) JSON.deserializeUntyped(valueContent);
-                return nestedContent;
+                // Check if the value content is JSON or plain text
+                String trimmedValue = valueContent.trim();
+                if (trimmedValue.startsWith('{') || trimmedValue.startsWith('[')) {
+                    // The value contains JSON, parse it
+                    try {
+                        Map<String, Object> nestedContent = (Map<String, Object>) JSON.deserializeUntyped(valueContent);
+                        return nestedContent;
+                    } catch (Exception jsonEx) {
+                        System.debug('Failed to parse nested JSON in Text response: ' + jsonEx.getMessage());
+                        // Fall through to treat as plain text
+                    }
+                }
+                
+                // The value is plain text, check if it indicates success or failure
+                String lowerValue = valueContent.toLowerCase();
+                System.debug('Analyzing plain text response for success indicators: ' + valueContent);
+                
+                if (lowerValue.contains('successfully') || lowerValue.contains('completed') || 
+                    lowerValue.contains('scheduled') || lowerValue.contains('done') ||
+                    lowerValue.contains('finished') || lowerValue.contains('accomplished')) {
+                    
+                    // Try to extract the actual number of sessions scheduled from the text
+                    Integer slotsUpserted = 0;
+                    if (lowerValue.contains('scheduled')) {
+                        // Look for patterns like "scheduled X sessions" or "X sessions scheduled"
+                        List<String> words = valueContent.split('\\s+');
+                        for (Integer i = 0; i < words.size(); i++) {
+                            String word = words[i].trim();
+                            // Remove common punctuation
+                            word = word.replaceAll('[^0-9]', '');
+                            if (word.isNumeric()) {
+                                Integer num = Integer.valueOf(word);
+                                if (num > 0 && num <= 100) { // Reasonable range check
+                                    slotsUpserted = num;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    
+                    // If we couldn't extract a number, default to batch size
+                    if (slotsUpserted == 0) {
+                        slotsUpserted = this.batchSize;
+                        System.debug('Could not extract session count from text, defaulting to batch size: ' + slotsUpserted);
+                    } else {
+                        System.debug('Extracted session count from text: ' + slotsUpserted);
+                    }
+                    
+                    System.debug('Returning success response for Text type with slotsUpserted: ' + slotsUpserted);
+                    return new Map<String, Object>{
+                        'success' => true,
+                        'message' => valueContent,
+                        'slotsUpserted' => slotsUpserted,
+                        'responseType' => 'Text'
+                    };
+                } else if (lowerValue.contains('cannot') || lowerValue.contains('failed') || 
+                          lowerValue.contains('error') || lowerValue.contains('unable') ||
+                          lowerValue.contains('i cannot') || lowerValue.contains('i need') ||
+                          lowerValue.contains('i am unable')) {
+                    
+                    return new Map<String, Object>{
+                        'success' => false,
+                        'message' => 'Agent reported: ' + valueContent,
+                        'slotsUpserted' => 0,
+                        'error' => 'Agent returned plain text error instead of JSON response'
+                    };
+                } else {
+                    // Ambiguous text response, treat as informational
+                    return new Map<String, Object>{
+                        'success' => true,
+                        'message' => valueContent,
+                        'slotsUpserted' => 0,
+                        'responseType' => 'Text',
+                        'info' => 'Agent returned informational text response'
+                    };
+                }
             }
             
             // Check if it's a direct response with success field
@@ -421,7 +542,15 @@ public with sharing class SchedulingAgentQueueable implements Queueable, Databas
             return new Map<String, Object>{'error' => 'Invalid response format - missing success field or proposedSchedule'};
             
         } catch (Exception e) {
-            return new Map<String, Object>{'error' => 'Failed to parse JSON response: ' + e.getMessage()};
+            System.debug('JSON parsing failed: ' + e.getMessage());
+            System.debug('Raw response preview: ' + (agentResponse != null ? agentResponse.substring(0, Math.min(200, agentResponse.length())) : 'null'));
+            
+            return new Map<String, Object>{
+                'error' => 'Failed to parse JSON response: ' + e.getMessage(),
+                'success' => false,
+                'message' => 'Agent response could not be parsed as JSON',
+                'slotsUpserted' => 0
+            };
         }
     }
     
@@ -461,6 +590,23 @@ public with sharing class SchedulingAgentQueueable implements Queueable, Databas
                 if (result.success) {
                     System.debug('Scheduling agent response received successfully');
                     System.debug('Response length: ' + (result.agentResponse != null ? String.valueOf(result.agentResponse.length()) : '0'));
+                    
+                    // Add debug logging for response format validation
+                    if (result.agentResponse != null) {
+                        String responsePreview = result.agentResponse.length() > 200 ? 
+                            result.agentResponse.substring(0, 200) + '...' : 
+                            result.agentResponse;
+                        System.debug('Response preview: ' + responsePreview);
+                        
+                        // Check if response looks like JSON
+                        String trimmedResponse = result.agentResponse.trim();
+                        if (trimmedResponse.startsWith('{') || trimmedResponse.startsWith('[')) {
+                            System.debug('Response appears to be valid JSON format');
+                        } else {
+                            System.debug('WARNING: Response does not appear to be JSON format. Starts with: "' + 
+                                       (trimmedResponse.length() > 10 ? trimmedResponse.substring(0, 10) : trimmedResponse) + '"');
+                        }
+                    }
                     
                     // Check if the agent response indicates a failure scenario
                     if (result.agentResponse != null && isAgentResponseFailure(result.agentResponse)) {
@@ -620,4 +766,4 @@ public with sharing class SchedulingAgentQueueable implements Queueable, Databas
             // Log the error but don't throw it to avoid breaking the queueable execution
         }
     }
-} 
+}

@@ -1,4 +1,3 @@
-
 public with sharing class SessionLoader {
     
     /**
@@ -49,7 +48,7 @@ public with sharing class SessionLoader {
     private static SessionResponse organizeSessionsBySlotStatus(Id eventId) {
         SessionResponse response = new SessionResponse();
         
-        // Query for all sessions in the event with their session slots
+        // Query for all sessions in the event with their session slots and speakers
         List<Session__c> sessionRecords = [
             SELECT Id, Name, Event__c, Focus__c, Format__c, Requested_Room_Size__c,
                    Scheduled__c, Session_Abstract__c, Session_Length_Minutes__c,
@@ -57,7 +56,10 @@ public with sharing class SessionLoader {
                    (SELECT Id, Name, Session_Location__c, Date__c, Start_Time__c, 
                            End_Time__c, Draft__c, Session__c
                     FROM Session_Slots__r 
-                    ORDER BY Date__c, Start_Time__c)
+                    ORDER BY Date__c, Start_Time__c),
+                   (SELECT Id, Session__c, Speaker__c, Speaker__r.FirstName, Speaker__r.LastName, 
+                           Speaker__r.Email, Speaker__r.Title, Speaker__r.Account.Name
+                    FROM Session_Speakers__r)
             FROM Session__c 
             WHERE Event__c = :eventId
             ORDER BY Name
@@ -114,7 +116,7 @@ public with sharing class SessionLoader {
         List<Session> allSessions = new List<Session>();
         
         try {
-            // Query for all sessions in the events with their session slots
+            // Query for all sessions in the events with their session slots and speakers
             List<Session__c> sessionRecords = [
                 SELECT Id, Name, Event__c, Focus__c, Format__c, Requested_Room_Size__c,
                        Scheduled__c, Session_Abstract__c, Session_Length_Minutes__c,
@@ -122,7 +124,10 @@ public with sharing class SessionLoader {
                        (SELECT Id, Name, Session_Location__c, Date__c, Start_Time__c, 
                                End_Time__c, Draft__c 
                         FROM Session_Slots__r 
-                        ORDER BY Date__c, Start_Time__c)
+                        ORDER BY Date__c, Start_Time__c),
+                       (SELECT Id, Session__c, Speaker__c, Speaker__r.FirstName, Speaker__r.LastName, 
+                               Speaker__r.Email, Speaker__r.Title, Speaker__r.Account.Name
+                        FROM Session_Speakers__r)
                 FROM Session__c 
                 WHERE Event__c IN :eventIds
                 ORDER BY Name

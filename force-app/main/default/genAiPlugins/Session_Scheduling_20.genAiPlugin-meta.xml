@@ -4,9 +4,6 @@
     <description>You are an AI Agent, accessed only via a custom LWC supported by Apex, whose job is to help schedule sessions for a conference event by managing speaker availability, optimizing room assignments, proposing event schedules, resolving conflicts, and suggesting time slots.</description>
     <developerName>Session_Scheduling_20</developerName>
     <genAiFunctions>
-        <functionName>Load_Rooms_with_availability_slots</functionName>
-    </genAiFunctions>
-    <genAiFunctions>
         <functionName>Load_Sessions_Organized_by_Slot_Status</functionName>
     </genAiFunctions>
     <genAiFunctions>
@@ -16,73 +13,104 @@
         <functionName>Load_Event_by_ID</functionName>
     </genAiFunctions>
     <genAiFunctions>
-        <functionName>Load_Unscheduled_Sessions_In_Batches</functionName>
+        <functionName>Load_Unscheduled_Sessions</functionName>
+    </genAiFunctions>
+    <genAiFunctions>
+        <functionName>Load_Location_Availability</functionName>
     </genAiFunctions>
     <genAiPluginInstructions>
-        <description>Schedule as many sessions as possible so that the Locations are fully booked if there are enough sessions.</description>
+        <description>When the user requests a session schedule or proposed session schedule, load the sessions and any existing slots. There will be some sessions with no slot yet, some with a draft slot and some with a finalized slot. Reference the finalized slots but do not edit them or schedule over them. For the sessions with draft slots or no slots, edit or create slots to schedules sessions according to the instructions. All these session slots should be marked as draft. Pass them to the SessionScheduler.</description>
         <developerName>instruction_0_1754855674144</developerName>
         <language xsi:nil="true"/>
         <masterLabel>instruction_0_1754855674144</masterLabel>
     </genAiPluginInstructions>
     <genAiPluginInstructions>
-        <description>Try to place sessions in a location with a matching room size, but if there is no location available that matches on size, pick the first available location with availability.</description>
+        <description>Before finalizing any session slot, ensure that there are no overlapping sessions in the same room by comparing the new session slot times with existing session slots.</description>
         <developerName>instruction_1_1754855674144</developerName>
         <language xsi:nil="true"/>
         <masterLabel>instruction_1_1754855674144</masterLabel>
     </genAiPluginInstructions>
     <genAiPluginInstructions>
-        <description>If the requests are too large, break them into smaller chunks of 10 sessions each, calling the SessionScheduler as many times as needed until all sessions have a draft or finalized slot before completing your process and notifying the user.</description>
+        <description>Schedule as many sessions as possible so that the Locations are fully booked if there are enough sessions. If there are not enough locations for all the sessions leave the extra locations without a slot and notify the user.</description>
         <developerName>instruction_2_1754855674144</developerName>
         <language xsi:nil="true"/>
         <masterLabel>instruction_2_1754855674144</masterLabel>
     </genAiPluginInstructions>
     <genAiPluginInstructions>
-        <description>Compare each of your new SessionSlots to existing session slots and ensure that there is no overlap. We can&apos;t have more than one session in the same room at the same time.</description>
+        <description>Try to place sessions in a location with a matching room size, but if there is no location available that matches on size, pick the first available location with availability.</description>
         <developerName>instruction_3_1754855674144</developerName>
         <language xsi:nil="true"/>
         <masterLabel>instruction_3_1754855674144</masterLabel>
     </genAiPluginInstructions>
     <genAiPluginInstructions>
-        <description>Allow the user to specify modifications such as swapping two session&apos;s slots or moving a session to a different time or location.</description>
-        <developerName>instruction_4_1754855674144</developerName>
-        <language xsi:nil="true"/>
-        <masterLabel>instruction_4_1754855674144</masterLabel>
-    </genAiPluginInstructions>
-    <genAiPluginInstructions>
-        <description>There maybe be several hundred sessions overall. In order to create SessionSlots for each you will need to split the overall list of sessions into chunks, scheduling in groups of 10 while still ensuring no overlap with existing session slot records.</description>
-        <developerName>instruction_5_1754855674144</developerName>
-        <language xsi:nil="true"/>
-        <masterLabel>instruction_5_1754855674144</masterLabel>
-    </genAiPluginInstructions>
-    <genAiPluginInstructions>
-        <description>When session slots violate one of the specified instructions, modify the scheduling so  that all sessions are in compliance.</description>
+        <description>Allow users to ask for modifications to the schedule, such as moving a session when there are overlapping sessions in the same room. Use the loadSessionsOrganizedBySlotStatus to inspect the associated session slots and edit slots to move overlaps.  Use the loadLocationAvailability to see what slots are available.</description>
         <developerName>instructions_0_1755383662434</developerName>
         <language>en_US</language>
         <masterLabel>instructions_0_1755383662434</masterLabel>
     </genAiPluginInstructions>
     <genAiPluginInstructions>
-        <description>Sessions should be scheduled within the startDateTime and endDateTime of the event.</description>
+        <description>Compare each of your new SessionSlots to existing session slots and ensure that there is no overlap. We can&apos;t have more than one session in the same room at the same time.</description>
         <developerName>instructions_0_1755383928049</developerName>
         <language>en_US</language>
         <masterLabel>instructions_0_1755383928049</masterLabel>
     </genAiPluginInstructions>
     <genAiPluginInstructions>
-        <description>No sessions should be scheduled from 12pm to 1pm to allow for lunch.</description>
+        <description>Sessions will be either 45 minutes or 90 minutes long. There should be at least 10 minutes of passing time between the end of one session in a given room and the start of the next session in that room.</description>
         <developerName>instructions_1_1755383928049</developerName>
         <language>en_US</language>
         <masterLabel>instructions_1_1755383928049</masterLabel>
     </genAiPluginInstructions>
     <genAiPluginInstructions>
-        <description>Sessions will be either 45 minutes or 90 minutes long. There should be at least 10 minutes of passing time between the end of one session in a given room and the start of the next session in that room.</description>
+        <description>Important: Always run loadLocationAvailability before creating any new session slots, and make sure that the new slots fit within the updated location availability options. Confirm that no two sessions are scheduled in the same room at the same time.</description>
         <developerName>instructions_0_1755452533131</developerName>
         <language>en_US</language>
         <masterLabel>instructions_0_1755452533131</masterLabel>
     </genAiPluginInstructions>
     <genAiPluginInstructions>
-        <description>When the user requests a session schedule or proposed session schedule, load the sessions and any existing slots. There will be some sessions with no slot yet, some with a draft slot and some with a finalized slot. Reference the finalized slots but do not edit them or schedule over them. For the sessions with draft slots or no slots, edit or create slots to schedules sessions according to the instructions. All these session slots should be marked as draft. Pass them to the SessionScheduler.</description>
+        <description>No sessions should be scheduled from 12pm to 1pm to allow for lunch.</description>
         <developerName>instructions_1_1755452533131</developerName>
         <language>en_US</language>
         <masterLabel>instructions_1_1755452533131</masterLabel>
+    </genAiPluginInstructions>
+    <genAiPluginInstructions>
+        <description>Break up the data by loading sessions 10 at a time from loadUnscheduledSessions, calling the SessionScheduler as many times as needed until all sessions have a draft or finalized slot before completing your process and notifying the user.
+
+After each call to SessionScheduler, call loadLocationAvailability again to get an updated list of location availability. 
+
+Never schedule more than one session to the same room at the same time.</description>
+        <developerName>instructions_0_1755460481708</developerName>
+        <language>en_US</language>
+        <masterLabel>instructions_0_1755460481708</masterLabel>
+    </genAiPluginInstructions>
+    <genAiPluginInstructions>
+        <description>Allow the user to specify modifications such as swapping two session&apos;s slots or moving a session to a different time or location.</description>
+        <developerName>instructions_0_1755462858259</developerName>
+        <language>en_US</language>
+        <masterLabel>instructions_0_1755462858259</masterLabel>
+    </genAiPluginInstructions>
+    <genAiPluginInstructions>
+        <description>There maybe be several hundred sessions overall. In order to create SessionSlots for each you will need to split the overall list of sessions into chunks, scheduling in groups of 10 while still ensuring no overlap with existing session slot records.</description>
+        <developerName>instructions_0_1755463363231</developerName>
+        <language>en_US</language>
+        <masterLabel>instructions_0_1755463363231</masterLabel>
+    </genAiPluginInstructions>
+    <genAiPluginInstructions>
+        <description>Ensure that all scheduled times are adjusted to the timezone of the org/event. Use the event&apos;s timezone information when generating and displaying session times.</description>
+        <developerName>instructions_0_1755546989456</developerName>
+        <language>en_US</language>
+        <masterLabel>instructions_0_1755546989456</masterLabel>
+    </genAiPluginInstructions>
+    <genAiPluginInstructions>
+        <description>Sessions must be scheduled within the startDateTime and endDateTime of the event.</description>
+        <developerName>instructions_0_1755630583307</developerName>
+        <language>en_US</language>
+        <masterLabel>instructions_0_1755630583307</masterLabel>
+    </genAiPluginInstructions>
+    <genAiPluginInstructions>
+        <description>Important: Do not include results in your response. Only include the requested status information and return a complete JSON response.</description>
+        <developerName>instructions_0_1755806327752</developerName>
+        <language>en_US</language>
+        <masterLabel>instructions_0_1755806327752</masterLabel>
     </genAiPluginInstructions>
     <language>en_US</language>
     <masterLabel>Session Scheduling 2</masterLabel>

@@ -6,68 +6,19 @@
 public with sharing class LocationLoader {
     
     /**
-     * @description Subclass representing a location's availability period
+     * @description Inner class to represent location availability
      */
     public class LocationAvailability {
-        @InvocableVariable(
-            description='Session Location Record Id'
-        )
         public Id locationId;
-        
-        @InvocableVariable(
-            description='Session Location Name'
-        )
         public String locationName;
-        
-        @InvocableVariable(
-            description='Event this location belongs to'
-        )
         public Id eventId;
-        
-        @InvocableVariable(
-            description='Room Capacity'
-        )
         public Decimal roomCapacity;
-        
-        @InvocableVariable(
-            description='Room Size Category'
-        )
         public String roomSize;
-        
-        @InvocableVariable(
-            description='Date of availability'
-        )
         public Date availabilityDate;
-        
-        @InvocableVariable(
-            description='Start time of availability period'
-        )
-        public Datetime availabilityStart;
-        
-        @InvocableVariable(
-            description='End time of availability period'
-        )
-        public Datetime availabilityEnd;
-        
-        @InvocableVariable(
-            description='Duration of availability in minutes'
-        )
+        public String availabilityStartLocal;  // Store as local time string
+        public String availabilityEndLocal;    // Store as local time string
         public Integer durationMinutes;
-        
-        /**
-         * @description Constructor
-         */
-        public LocationAvailability() {
-            this.locationId = null;
-            this.locationName = '';
-            this.eventId = null;
-            this.roomCapacity = 0;
-            this.roomSize = '';
-            this.availabilityDate = null;
-            this.availabilityStart = null;
-            this.availabilityEnd = null;
-            this.durationMinutes = 0;
-        }
+        public String eventTimezone;  // Store timezone for reference
         
         /**
          * @description Constructor with parameters
@@ -75,28 +26,36 @@ public with sharing class LocationLoader {
         public LocationAvailability(Id locationId, String locationName, Id eventId, 
                                    Decimal roomCapacity, String roomSize, 
                                    Date availabilityDate, Datetime availabilityStart, 
-                                   Datetime availabilityEnd) {
+                                   Datetime availabilityEnd, String eventTimezone) {
             this.locationId = locationId;
             this.locationName = locationName;
             this.eventId = eventId;
             this.roomCapacity = roomCapacity != null ? roomCapacity : 0;
             this.roomSize = roomSize != null ? roomSize : '';
             this.availabilityDate = availabilityDate;
-            this.availabilityStart = availabilityStart;
-            this.availabilityEnd = availabilityEnd;
-            this.durationMinutes = this.calculateDurationMinutes();
-        }
-        
-        /**
-         * @description Calculates duration in minutes
-         */
-        private Integer calculateDurationMinutes() {
-            if (this.availabilityStart == null || this.availabilityEnd == null) {
-                return 0;
+            this.eventTimezone = eventTimezone;
+            
+            // Convert UTC times to local time strings immediately
+            if (availabilityStart != null && availabilityEnd != null && eventTimezone != null) {
+                TimeZone timezone = TimeZone.getTimeZone(eventTimezone);
+                Integer timezoneOffsetSeconds = timezone.getOffset(availabilityStart) / 1000;
+                
+                // Keep times in UTC and format with Z suffix
+                this.availabilityStartLocal = availabilityStart.format('yyyy-MM-dd\'T\'HH:mm:ss.SSS') + 'Z';
+                this.availabilityEndLocal = availabilityEnd.format('yyyy-MM-dd\'T\'HH:mm:ss.SSS') + 'Z';
+            } else {
+                // Fallback to UTC if no timezone info - format as UTC with Z suffix
+                this.availabilityStartLocal = availabilityStart != null ? availabilityStart.format('yyyy-MM-dd\'T\'HH:mm:ss.SSS') + 'Z' : null;
+                this.availabilityEndLocal = availabilityEnd != null ? availabilityEnd.format('yyyy-MM-dd\'T\'HH:mm:ss.SSS') + 'Z' : null;
             }
             
-            Long durationMs = this.availabilityEnd.getTime() - this.availabilityStart.getTime();
-            return (Integer)(durationMs / (1000 * 60)); // Convert milliseconds to minutes
+            // Calculate duration in minutes
+            if (availabilityStart != null && availabilityEnd != null) {
+                Long durationMillis = availabilityEnd.getTime() - availabilityStart.getTime();
+                this.durationMinutes = (Integer)(durationMillis / (1000 * 60));
+            } else {
+                this.durationMinutes = 0;
+            }
         }
     }
     
@@ -178,9 +137,9 @@ public with sharing class LocationLoader {
         }
         
         // try {
-            // Load events with their start/end dates
+            // Load events with their start/end dates and timezone
             Map<Id, Event__c> eventsMap = new Map<Id, Event__c>([
-                SELECT Id, Event_Start_Date__c, Event_End_Date__c
+                SELECT Id, Event_Start_Date__c, Event_End_Date__c, Event_Timezone__c
                 FROM Event__c 
                 WHERE Id IN :eventIds
                 AND Event_Start_Date__c != null 
@@ -208,6 +167,13 @@ public with sharing class LocationLoader {
                 ORDER BY Date__c, Start_Time__c
             ];
             
+            System.debug('=== Loaded Session Slots ===');
+            System.debug('Total session slots found: ' + sessionSlots.size());
+            for (Session_Slot__c slot : sessionSlots) {
+                System.debug('Slot: ID=' + slot.Id + ', Location=' + slot.Session_Location__c + 
+                           ', Date=' + slot.Date__c + ', Time=' + slot.Start_Time__c + '-' + slot.End_Time__c);
+            }
+            
             // Group session slots by location and date
             Map<String, List<Session_Slot__c>> slotsByLocationAndDate = new Map<String, List<Session_Slot__c>>();
             for (Session_Slot__c slot : sessionSlots) {
@@ -216,6 +182,15 @@ public with sharing class LocationLoader {
                     slotsByLocationAndDate.put(key, new List<Session_Slot__c>());
                 }
                 slotsByLocationAndDate.get(key).add(slot);
+            }
+            
+            System.debug('=== Grouped Session Slots ===');
+            for (String key : slotsByLocationAndDate.keySet()) {
+                List<Session_Slot__c> slots = slotsByLocationAndDate.get(key);
+                System.debug('Key: ' + key + ' has ' + slots.size() + ' slots');
+                for (Session_Slot__c slot : slots) {
+                    System.debug('  Slot: ' + slot.Start_Time__c + ' to ' + slot.End_Time__c);
+                }
             }
             
             // Process each location
@@ -246,10 +221,33 @@ public with sharing class LocationLoader {
                     List<Session_Slot__c> existingSlots = slotsByLocationAndDate.containsKey(key) ? 
                         slotsByLocationAndDate.get(key) : new List<Session_Slot__c>();
                     
+                    System.debug('Processing location: ' + location.Name + ' for date: ' + currentDate);
+                    System.debug('Key: ' + key + ' has ' + existingSlots.size() + ' existing slots');
+                    for (Session_Slot__c slot : existingSlots) {
+                        System.debug('  Existing slot: ' + slot.Start_Time__c + ' to ' + slot.End_Time__c);
+                    }
+                    
                     // Calculate available time slots for this day
                     List<LocationAvailability> dayAvailability = calculateDayAvailability(
                         location, event, currentDate, existingSlots
                     );
+                    
+                    // If no existing slots, provide full-day availability
+                    if (existingSlots.isEmpty()) {
+                        String eventTimezone = event.Event_Timezone__c != null ? event.Event_Timezone__c : 'America/Los_Angeles';
+                        
+                        // For days with no existing slots, create full-day availability (24 hours)
+                        Datetime dayStartUTC = Datetime.newInstanceGmt(currentDate, Time.newInstance(0, 0, 0, 0));
+                        Datetime dayEndUTC = Datetime.newInstanceGmt(currentDate, Time.newInstance(23, 59, 59, 0));
+                        
+                        dayAvailability.add(new LocationAvailability(
+                            location.Id, location.Name, event.Id,
+                            location.Room_Capacity__c, location.Room_Size__c,
+                            currentDate, dayStartUTC, dayEndUTC, eventTimezone
+                        ));
+                        
+                        System.debug('Added full-day availability for ' + currentDate + ': 24 hours (UTC)');
+                    }
                     
                     // Add day availability to the location's availability periods
                     locationWithAvailability.availabilityPeriods.addAll(dayAvailability);
@@ -270,8 +268,40 @@ public with sharing class LocationLoader {
         // Convert to JSON strings for invocable method compatibility
         System.debug('locationsWithAvailability: ' + JSON.serialize(locationsWithAvailability));
         List<String> availabilityJsonStrings = new List<String>();
-        availabilityJsonStrings.add(JSON.serialize(locationsWithAvailability));
-        System.debug('availabilityJsonStrings: ' + availabilityJsonStrings);
+        
+        // Build custom JSON with local timezone conversion
+        List<Map<String, Object>> customJsonList = new List<Map<String, Object>>();
+        
+        for (LocationWithAvailability location : locationsWithAvailability) {
+            Map<String, Object> locationMap = new Map<String, Object>();
+            locationMap.put('roomSize', location.roomSize);
+            locationMap.put('roomCapacity', location.roomCapacity);
+            locationMap.put('locationName', location.locationName);
+            locationMap.put('locationId', location.locationId);
+            locationMap.put('eventId', location.eventId);
+            
+            List<Map<String, Object>> availabilityPeriods = new List<Map<String, Object>>();
+            for (LocationAvailability period : location.availabilityPeriods) {
+                Map<String, Object> periodMap = new Map<String, Object>();
+                periodMap.put('roomSize', period.roomSize);
+                periodMap.put('roomCapacity', period.roomCapacity);
+                periodMap.put('locationName', period.locationName);
+                periodMap.put('locationId', period.locationId);
+                periodMap.put('eventId', period.eventId);
+                periodMap.put('durationMinutes', period.durationMinutes);
+                periodMap.put('availabilityStart', period.availabilityStartLocal);
+                periodMap.put('availabilityEnd', period.availabilityEndLocal);
+                periodMap.put('availabilityDate', period.availabilityDate != null ? period.availabilityDate.format() : null);
+                
+                availabilityPeriods.add(periodMap);
+            }
+            
+            locationMap.put('availabilityPeriods', availabilityPeriods);
+            customJsonList.add(locationMap);
+        }
+        
+        availabilityJsonStrings.add(JSON.serialize(customJsonList));
+        System.debug('final availabilityJsonStrings: ' + availabilityJsonStrings);
         return availabilityJsonStrings;
     }
     
@@ -283,48 +313,13 @@ public with sharing class LocationLoader {
         
         List<LocationAvailability> availability = new List<LocationAvailability>();
         
-        // Set business hours: 7 AM to 5 PM
-        Time businessStart = Time.newInstance(7, 0, 0, 0);  // 7:00 AM
-        Time businessEnd = Time.newInstance(17, 0, 0, 0);    // 5:00 PM
+        // Get the event's timezone, default to Pacific Time if not set
+        String eventTimezone = event.Event_Timezone__c != null ? event.Event_Timezone__c : 'America/Los_Angeles';
         
-        // Create datetime objects for the day
-        Datetime dayStart = Datetime.newInstance(day, businessStart);
-        Datetime dayEnd = Datetime.newInstance(day, businessEnd);
+        System.debug('Day: ' + day + ', Event Timezone: ' + eventTimezone);
         
-        // Adjust for event boundaries
-        if (day == event.Event_Start_Date__c.date()) {
-            // First day: start from event start time or business start, whichever is later
-            Time eventStartTime = event.Event_Start_Date__c.time();
-            if (eventStartTime > businessStart) {
-                dayStart = Datetime.newInstance(day, eventStartTime);
-            }
-            // Ensure we never start before business hours
-            if (dayStart < Datetime.newInstance(day, businessStart)) {
-                dayStart = Datetime.newInstance(day, businessStart);
-            }
-        }
-        
-        if (day == event.Event_End_Date__c.date()) {
-            // Last day: end at event end time or business end, whichever is earlier
-            Time eventEndTime = event.Event_End_Date__c.time();
-            if (eventEndTime < businessEnd) {
-                dayEnd = Datetime.newInstance(day, eventEndTime);
-            }
-            // Ensure we never end after business hours
-            if (dayEnd > Datetime.newInstance(day, businessEnd)) {
-                dayEnd = Datetime.newInstance(day, businessEnd);
-            }
-        }
-        
-        // If no existing slots, the entire business day is available
+        // If no existing slots, return empty list - let the main method handle full-day availability
         if (existingSlots.isEmpty()) {
-            if (dayStart < dayEnd) {
-                availability.add(new LocationAvailability(
-                    location.Id, location.Name, location.Event__c,
-                    location.Room_Capacity__c, location.Room_Size__c,
-                    day, dayStart, dayEnd
-                ));
-            }
             return availability;
         }
         
@@ -332,32 +327,47 @@ public with sharing class LocationLoader {
         existingSlots.sort(new SessionSlotComparator());
         
         // Find gaps between existing slots
-        Datetime currentStart = dayStart;
+        // Start with the first slot's start time, not midnight
+        Datetime currentStart = null;
         
-        for (Session_Slot__c slot : existingSlots) {
-            Datetime slotStart = Datetime.newInstance(day, slot.Start_Time__c);
-            Datetime slotEnd = Datetime.newInstance(day, slot.End_Time__c);
+        for (Integer i = 0; i < existingSlots.size(); i++) {
+            Session_Slot__c slot = existingSlots[i];
             
-            // If there's a gap before this slot, add it as available
-            if (currentStart < slotStart) {
-                availability.add(new LocationAvailability(
-                    location.Id, location.Name, location.Event__c,
-                    location.Room_Capacity__c, location.Room_Size__c,
-                    day, currentStart, slotStart
-                ));
+            // The Time field values represent UTC times (e.g., 14:00:00.000Z = 2 PM UTC)
+            Time slotStartTime = slot.Start_Time__c;
+            Time slotEndTime = slot.End_Time__c;
+            
+            // Create UTC datetime objects from the Time fields
+            Datetime slotStartUTC = Datetime.newInstanceGmt(day, slotStartTime);
+            Datetime slotEndUTC = Datetime.newInstanceGmt(day, slotEndTime);
+            
+            System.debug('Processing slot: Date=' + slot.Date__c + ', Day=' + day + ', Match=' + (slot.Date__c == day));
+            System.debug('Slot UTC: ' + slotStartUTC + ' to ' + slotEndUTC);
+            System.debug('Slot time values: Start=' + slotStartTime + ', End=' + slotEndTime);
+            
+            if (currentStart == null) {
+                // First slot - start tracking from here
+                currentStart = slotEndUTC;
+            } else {
+                // Check for gap between previous slot end and current slot start
+                if (currentStart < slotStartUTC) {
+                    System.debug('Adding availability gap: ' + currentStart + ' to ' + slotStartUTC);
+                    availability.add(new LocationAvailability(
+                        location.Id, location.Name, event.Id,
+                        location.Room_Capacity__c, location.Room_Size__c,
+                        day, currentStart, slotStartUTC, eventTimezone
+                    ));
+                }
+                currentStart = slotEndUTC;
             }
-            
-            // Move current start to after this slot
-            currentStart = slotEnd;
         }
         
-        // If there's time remaining after the last slot, add it as available
-        if (currentStart < dayEnd) {
-            availability.add(new LocationAvailability(
-                location.Id, location.Name, location.Event__c,
-                location.Room_Capacity__c, location.Room_Size__c,
-                day, currentStart, dayEnd
-            ));
+        // No need to add final availability period since we're only looking for gaps between slots
+        // The main method will handle full-day availability for days with no existing slots
+        
+        // Debug: Show the availability with local times
+        for (LocationAvailability avail : availability) {
+            System.debug('Availability period: ' + avail.availabilityStartLocal + ' to ' + avail.availabilityEndLocal + ' (local time)');
         }
         System.debug('availability: ' + JSON.serialize(availability));
         return availability;

@@ -207,7 +207,7 @@
                         
                         <!-- Schedule Table -->
                         <template if:true={showResults}>
-                            <div class="slds-card slds-m-top_medium">
+                            <div class="slds-card slds-m-top_medium schedule-table-container">
                                 <div class="slds-card__header">
                                     <h2 class="slds-card__header-title">
                                         <span class="slds-text-heading_medium">Proposed Schedule</span>
@@ -230,16 +230,19 @@
                                     
                                     <!-- Show schedule table if data exists -->
                                     <template if:false={hasNoScheduleData}>
-                                        <lightning-datatable
-                                            data={formattedScheduleForDisplay}
-                                            columns={scheduleTableColumns}
-                                            key-field="sessionName"
-                                            hide-checkbox-column
-                                            show-row-number-column
-                                            sorted-by={sortBy}
-                                            sorted-direction={sortDirection}
-                                            onsort={handleSort}>
-                                        </lightning-datatable>
+                                        <div class="slds-p-around_medium">
+                                            <lightning-datatable
+                                                data={formattedScheduleForDisplay}
+                                                columns={scheduleTableColumns}
+                                                key-field="sessionName"
+                                                hide-checkbox-column
+                                                show-row-number-column
+                                                sorted-by={sortBy}
+                                                sorted-direction={sortDirection}
+                                                onsort={handleSort}
+                                                class="full-width-datatable">
+                                            </lightning-datatable>
+                                        </div>
                                     </template>
                                 </div>
                             </div>

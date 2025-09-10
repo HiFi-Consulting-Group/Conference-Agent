@@ -114,10 +114,42 @@ public with sharing class Session {
         this.sessionSlotCount = sessionRecord.Session_Slot_Count__c != null ? 
             sessionRecord.Session_Slot_Count__c : 0;
         this.sessionSlots = new List<SessionSlot>();
-        //If there are Session_Slots__r, then add them to the sessionSlots list 
+        
+        // If there are Session_Slots__r, then add them to the sessionSlots list 
         if (sessionRecord.Session_Slots__r != null) {
             for (Session_Slot__c sessionSlot : sessionRecord.Session_Slots__r) {
                 this.sessionSlots.add(new SessionSlot(sessionSlot));
+            }
+        }
+        
+        // If there are Session_Speakers__r, then add them to the speakers list
+        if (sessionRecord.Session_Speakers__r != null) {
+            for (Session_Speaker__c sessionSpeaker : sessionRecord.Session_Speakers__r) {
+                // Create a SessionSpeaker wrapper with the speaker contact details
+                SessionSpeaker speakerWrapper = new SessionSpeaker(sessionSpeaker);
+                
+                // If we have speaker contact details, populate them
+                if (sessionSpeaker.Speaker__r != null) {
+                    speakerWrapper.speakerFirstName = sessionSpeaker.Speaker__r.FirstName != null ? 
+                        sessionSpeaker.Speaker__r.FirstName : '';
+                    speakerWrapper.speakerLastName = sessionSpeaker.Speaker__r.LastName != null ? 
+                        sessionSpeaker.Speaker__r.LastName : '';
+                    speakerWrapper.speakerEmail = sessionSpeaker.Speaker__r.Email != null ? 
+                        sessionSpeaker.Speaker__r.Email : '';
+                    speakerWrapper.speakerTitle = sessionSpeaker.Speaker__r.Title != null ? 
+                        sessionSpeaker.Speaker__r.Title : '';
+                    
+                    // Handle Account relationship for company name
+                    if (sessionSpeaker.Speaker__r.Account != null) {
+                        speakerWrapper.speakerCompany = sessionSpeaker.Speaker__r.Account.Name != null ? 
+                            sessionSpeaker.Speaker__r.Account.Name : '';
+                    }
+                    
+                    // Update the full name after setting all the individual fields
+                    speakerWrapper.updateFullName();
+                }
+                
+                this.speakers.add(speakerWrapper);
             }
         }
     }
@@ -268,4 +300,4 @@ public with sharing class Session {
         }
         return sessionRecords;
     }
-} 
+}

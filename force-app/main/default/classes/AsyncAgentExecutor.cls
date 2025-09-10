@@ -130,6 +130,12 @@ public with sharing class AsyncAgentExecutor implements Queueable, Database.Allo
                 Status__c = status
             );
             
+            // Always update the Session_ID__c field if we have a session ID for conversation continuity
+            if (String.isNotBlank(this.sessionId)) {
+                session.Session_ID__c = this.sessionId;
+                System.debug('Updating Session_ID__c to: ' + this.sessionId);
+            }
+            
             if (status == 'Completed') {
                 session.Agent_Response__c = agentResponse;
                 session.Completed_At__c = completedAt;
@@ -140,10 +146,11 @@ public with sharing class AsyncAgentExecutor implements Queueable, Database.Allo
             }
             
             update session;
+            System.debug('Updated async session status to: ' + status + ' with Session_ID__c: ' + this.sessionId);
             
         } catch (Exception e) {
             System.debug('Failed to update async session status: ' + e.getMessage());
             // Don't throw here as it would cause the queueable to fail
         }
     }
-} 
+}

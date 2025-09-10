@@ -385,4 +385,4 @@ public with sharing class SessionSlot {
         }
         return sessionSlotRecords;
     }
-} 
+}

@@ -1,0 +1,66 @@
+<template>
+    <lightning-card title="Conference Schedule Management" icon-name="standard:event">
+        <div class="slds-p-around_medium">
+            <div class="slds-text-heading_medium slds-m-bottom_medium">
+                What would you like to do?
+            </div>
+            
+            <lightning-radio-group
+                name="scheduleOption"
+                label="Schedule Option"
+                options={scheduleOptions}
+                value={selectedOption}
+                onchange={handleOptionChange}
+                class="slds-m-bottom_medium">
+            </lightning-radio-group>
+            
+            <!-- Conditional section for new schedule option -->
+            <template if:true={showEventSelection}>
+                <div class="slds-box slds-theme_shade slds-m-bottom_medium">
+                    <div class="slds-text-heading_small slds-m-bottom_small">
+                        Select an Event for the New Schedule
+                    </div>
+                    
+                    <template if:true={isLoadingEvents}>
+                        <lightning-spinner alternative-text="Loading events..." size="small"></lightning-spinner>
+                    </template>
+                    
+                    <template if:false={isLoadingEvents}>
+                        <template if:true={hasEvents}>
+                            <lightning-radio-group
+                                name="eventSelection"
+                                label="Available Events"
+                                options={eventOptions}
+                                value={selectedEventId}
+                                onchange={handleEventChange}
+                                class="slds-m-bottom_medium">
+                            </lightning-radio-group>
+                        </template>
+                        
+                        <template if:false={hasEvents}>
+                            <div class="slds-text-color_weak slds-text-align_center">
+                                No events found. Please create an event first.
+                            </div>
+                        </template>
+                    </template>
+                </div>
+            </template>
+            
+            <div class="slds-m-top_medium">
+                <lightning-button
+                    variant="brand"
+                    label="Continue"
+                    onclick={handleContinue}
+                    disabled={isContinueDisabled}
+                    class="slds-m-right_x-small">
+                </lightning-button>
+                
+                <lightning-button
+                    variant="neutral"
+                    label="Cancel"
+                    onclick={handleCancel}>
+                </lightning-button>
+            </div>
+        </div>
+    </lightning-card>
+</template>

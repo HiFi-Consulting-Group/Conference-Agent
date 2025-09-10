@@ -542,36 +542,12 @@ public with sharing class AiAgentResponseParser {
         Map<String, Object> extracted = new Map<String, Object>();
         
         try {
-            // Check if this is a partial schedule (list of sessions directly)
-            if (scheduleData instanceof List<Object>) {
-                List<Object> sessions = (List<Object>) scheduleData;
-                extracted.put('sessionCount', sessions.size());
-                extracted.put('sessions', sessions);
-                extracted.put('isPartialSchedule', true);
-                extracted.put('warning', 'This appears to be a partial schedule extracted from a truncated response');
-                
-                // Extract unique locations
-                Set<String> locations = new Set<String>();
-                for (Object session : sessions) {
-                    if (session instanceof Map<String, Object>) {
-                        Map<String, Object> sessionMap = (Map<String, Object>) session;
-                        if (sessionMap.containsKey('location')) {
-                            locations.add(String.valueOf(sessionMap.get('location')));
-                        }
-                    }
-                }
-                extracted.put('locations', new List<String>(locations));
-                
-                return extracted;
-            }
-            
             if (scheduleData.containsKey('proposedSchedule')) {
                 Object scheduleObj = scheduleData.get('proposedSchedule');
                 if (scheduleObj instanceof List<Object>) {
                     List<Object> sessions = (List<Object>) scheduleObj;
                     extracted.put('sessionCount', sessions.size());
                     extracted.put('sessions', sessions);
-                    extracted.put('isPartialSchedule', false);
                     
                     // Extract unique locations
                     Set<String> locations = new Set<String>();
@@ -620,15 +596,6 @@ public with sharing class AiAgentResponseParser {
             summary.put('totalSessions', extracted.get('sessionCount'));
             summary.put('locations', extracted.get('locations'));
             
-            // Check if this is a partial schedule
-            if (extracted.containsKey('isPartialSchedule') && (Boolean) extracted.get('isPartialSchedule')) {
-                summary.put('isPartialSchedule', true);
-                summary.put('warning', extracted.get('warning'));
-                summary.put('recommendation', 'This schedule was extracted from a truncated response. Consider requesting a smaller schedule.');
-            } else {
-                summary.put('isPartialSchedule', false);
-            }
-            
             // Group sessions by location
             if (extracted.containsKey('sessions')) {
                 List<Object> sessions = (List<Object>) extracted.get('sessions');
@@ -656,4 +623,4 @@ public with sharing class AiAgentResponseParser {
         
         return summary;
     }
-} 
+}

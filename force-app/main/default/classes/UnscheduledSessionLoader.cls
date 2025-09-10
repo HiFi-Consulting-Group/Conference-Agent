@@ -55,26 +55,6 @@ public with sharing class UnscheduledSessionLoader {
             
             for (Session__c sessionRecord : unscheduledSessions) {
                 Session session = new Session(sessionRecord);
-                
-                // Add speakers if they exist (already loaded via subquery)
-                if (sessionRecord.Session_Speakers__r != null && !sessionRecord.Session_Speakers__r.isEmpty()) {
-                    for (Session_Speaker__c sessionSpeakerRecord : sessionRecord.Session_Speakers__r) {
-                        // Create a Contact object with the speaker details from the subquery
-                        Contact speakerContact = new Contact(
-                            Id = sessionSpeakerRecord.Speaker__c,
-                            FirstName = sessionSpeakerRecord.Speaker__r.FirstName,
-                            LastName = sessionSpeakerRecord.Speaker__r.LastName,
-                            Email = sessionSpeakerRecord.Speaker__r.Email,
-                            Title = sessionSpeakerRecord.Speaker__r.Title,
-                            Account = sessionSpeakerRecord.Speaker__r.Account != null ? 
-                                new Account(Name = sessionSpeakerRecord.Speaker__r.Account.Name) : null
-                        );
-                        
-                        SessionSpeaker speaker = new SessionSpeaker(sessionSpeakerRecord, speakerContact);
-                        session.addSpeaker(speaker);
-                    }
-                }
-                
                 sessions.add(session);
             }
 

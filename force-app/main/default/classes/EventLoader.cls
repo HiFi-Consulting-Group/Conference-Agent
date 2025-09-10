@@ -42,4 +42,4 @@ public with sharing class EventLoader {
         List<String> results = loadEventById(new List<Id>{eventId});
         return results.isEmpty() ? '{}' : results[0];
     }
-} 
+}

@@ -1,20 +1,4 @@
-
-/**
- * @description ScheduleAgentLocationController is an Apex class that provides an InvocableMethod
- *      to load rooms with availability slots for scheduling. It currently only loads the Location records
- *      and the availability will be added later.
- * @Version: 1.0
- */
 public with sharing class ScheduleAgentLocationController {
-
-    /**
-     * @description This method is used to load rooms with availability slots for scheduling.
-     * It currently only loads the Location records and the availability will be added later.
-     * @Version: 1.0
-     * @param input:input InvocableMethods called by Agentforce must have an input parameter, we don't actually need any kind of input for this method so it's value is not used.
-     * @return: A list of LocationArray objects containing the loaded rooms and their availability slots.
-     * @throws: None
-     */
     @InvocableMethod(
         label='Load Rooms with availability slots'
         description='Currently just loads Locations, Availbility will be added later'

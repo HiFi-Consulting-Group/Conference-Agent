@@ -1,4 +1,3 @@
-
 /**
      * @description This class is used to create Session Slot records for Agentforce.
      *              It provides an invocable method that takes a list of SessionSlotArray objects

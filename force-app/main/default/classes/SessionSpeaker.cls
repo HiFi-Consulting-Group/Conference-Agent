@@ -130,7 +130,7 @@ public with sharing class SessionSpeaker {
      * @description Builds the full name from first and last name
      * @return String full name
      */
-    private String buildFullName() {
+    public String buildFullName() {
         if (String.isNotBlank(this.speakerFirstName) && String.isNotBlank(this.speakerLastName)) {
             return this.speakerFirstName + ' ' + this.speakerLastName;
         } else if (String.isNotBlank(this.speakerFirstName)) {
@@ -139,6 +139,13 @@ public with sharing class SessionSpeaker {
             return this.speakerLastName;
         }
         return '';
+    }
+    
+    /**
+     * @description Updates the full name based on current first and last name
+     */
+    public void updateFullName() {
+        this.speakerFullName = this.buildFullName();
     }
     
     /**
@@ -266,4 +273,4 @@ public with sharing class SessionSpeaker {
         }
         return sessionSpeakerRecords;
     }
-} 
+}
